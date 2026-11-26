@@ -46,6 +46,9 @@ boleh campur Inggris untuk istilah teknis).
     build gagal ("uncached or runtime data during prerendering"). Bungkus komponen dinamis dengan Suspense
     (lihat `src/app/dashboard/layout.tsx`, `src/app/login/page.tsx`).
   - File `layout.tsx`/`page.tsx` jangan mengekspor komponen tambahan; taruh di `src/components/`.
+  - **Auth: tiap `page.tsx` di dashboard wajib `await requireSession()` di baris pertama.** Cek di layout
+    tidak cukup — page dirender paralel dan datanya ikut terkirim di RSC payload walau layout redirect.
+    Route handler admin pakai `requireAdmin()`.
 - Font: paket **`geist`** lokal (bukan `next/font/google`) supaya build tidak butuh akses Google Fonts.
 - Database: **Neon Postgres** via `@neondatabase/serverless` (`src/lib/db.ts`). Tabel dibuat otomatis oleh
   `ensureSchema()` (maps, dances). Tidak ada ORM/migrasi; ubah skema dengan `ALTER TABLE ... IF NOT EXISTS`

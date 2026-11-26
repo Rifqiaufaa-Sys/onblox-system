@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ensureSchema, sql, type MapRow } from "@/lib/db";
 import SetupNeeded from "@/components/SetupNeeded";
+import { requireSession } from "@/lib/auth";
 import CreateMap from "./CreateMap";
 
 export default async function DashboardPage() {
+  await requireSession();
   let maps: MapRow[] = [];
   try {
     await ensureSchema();

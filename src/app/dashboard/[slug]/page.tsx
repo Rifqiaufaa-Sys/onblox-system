@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { getMapBySlug, sql, type DanceRow } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
 import MapManager from "./MapManager";
 
 export default async function MapPage({ params }: PageProps<"/dashboard/[slug]">) {
+  await requireSession();
   const { slug } = await params;
   const map = await getMapBySlug(slug);
   if (!map) notFound();

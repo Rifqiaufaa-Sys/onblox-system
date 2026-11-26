@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
@@ -77,6 +78,17 @@ export async function getSession(): Promise<Session | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Untuk server component: wajib dipanggil di AWAL tiap page yang membaca data rahasia.
+ * Cek di layout saja TIDAK cukup — Next merender page paralel dengan layout, jadi data page
+ * tetap terkirim di RSC payload walau layout me-redirect.
+ */
+export async function requireSession(): Promise<Session> {
+  const s = await getSession();
+  if (!s) redirect("/login");
+  return s;
 }
 
 export function passwordLoginEnabled() {
