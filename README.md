@@ -17,8 +17,8 @@ Neon Postgres · deploy di Vercel.
    - `SESSION_SECRET` — string acak minimal 32 karakter
    - Login Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
    - Login Discord: `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
-   - Allowlist: `ALLOWED_EMAILS` (email Google/Discord terverifikasi) dan/atau `ALLOWED_DISCORD_IDS`,
-     dipisah koma. Akun di luar daftar ditolak.
+   - Owner: `ALLOWED_EMAILS` (email Google/Discord terverifikasi) dan/atau `ALLOWED_DISCORD_IDS`,
+     dipisah koma. Owner punya akses penuh dan tidak bisa terkunci dari dashboard.
    - Opsional: `ADMIN_PASSWORD` — password cadangan (kosongkan untuk mematikan)
 4. **Redeploy** (Deployments → ⋯ → Redeploy). Tabel database dibuat otomatis saat pertama dipakai.
 
@@ -32,6 +32,18 @@ Untuk tiap domain yang dipakai (mis. `onblox-system.vercel.app` dan `system.onbl
   Matikan **Public Client** (website ini memakai Client Secret di server).
 
 Kalau login gagal, alasan aslinya tercatat di Vercel → Logs (cari `[oauth:`), mis. `invalid_client` = secret salah.
+
+## Akses
+
+| Peran | Diatur di | Bisa apa |
+| --- | --- | --- |
+| Owner | env `ALLOWED_*` | semua |
+| Admin studio | dashboard → **Akses** | semua map, kunci API, kelola akses |
+| Klien | dashboard → **Akses** | hanya map yang dibagikan, kelola dance |
+| Tamu | (login tapi belum terdaftar) | halaman "akses eksklusif" + ajakan commission |
+
+Orang yang belum terdaftar bisa menyalin Discord ID / email-nya dari halaman akses eksklusif lalu
+mengirimkannya ke tim OnBlox. Mencabut akses langsung berlaku (hak akses dicek ulang tiap request).
 
 ## Pakai
 

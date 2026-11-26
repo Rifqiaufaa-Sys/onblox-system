@@ -1,8 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, sessionCookieOptions, signSession } from "@/lib/auth";
-import { OAUTH_COOKIE, exchangeCode, fetchUser, isAllowed, isProvider, providerEnabled } from "@/lib/oauth";
+import { SESSION_COOKIE, sessionCookieOptions, signSession, type Session } from "@/lib/auth";
+import { findMember } from "@/lib/access";
+import { sql } from "@/lib/db";
+import { OAUTH_COOKIE, exchangeCode, fetchUser, isProvider, providerEnabled } from "@/lib/oauth";
 
-/** Balik dari Google/Discord: cek state, tukar code jadi token, ambil profil, cek allowlist, buat sesi. */
+/**
+ * Balik dari Google/Discord: cek state, tukar code jadi token, ambil profil, buat sesi.
+ * Semua yang berhasil login dapat sesi; yang belum terdaftar akan melihat halaman akses eksklusif.
+ */
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/auth/callback/[provider]">) {
   const { provider } = await ctx.params;
   const origin = req.nextUrl.origin;
@@ -33,25 +38,35 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/auth/callbac
   const user = await fetchUser(provider, token);
   if (!user) return fail("token");
 
-  if (!isAllowed(user)) {
-    console.warn(`[oauth:${provider}] ditolak (tidak ada di allowlist)`, user.id, user.email);
-    return fail("denied");
+  const session: Session = {
+    sub: `${user.provider}:${user.id}`,
+    name: user.name,
+    avatar: user.avatar,
+    provider: user.provider,
+    email: user.emailVerified ? user.email : null,
+  };
+
+  // catat login terakhir + foto/nama akun di daftar member (kalau terdaftar). Gagal pun tidak masalah.
+  try {
+    const member = await findMember(session);
+    if (member) {
+      await sql()`
+        UPDATE members SET last_login_at = now(), account_name = ${user.name}, avatar = ${user.avatar}
+        WHERE id = ${member.id}`;
+    }
+  } catch (e) {
+    console.error("[oauth] gagal update member", e);
   }
 
-  let session: string;
+  let jwt: string;
   try {
-    session = await signSession({
-      sub: `${user.provider}:${user.id}`,
-      name: user.name,
-      avatar: user.avatar,
-      provider: user.provider,
-    });
+    jwt = await signSession(session);
   } catch {
     return fail("config");
   }
 
   const res = NextResponse.redirect(new URL("/dashboard", origin));
   res.cookies.delete({ name: OAUTH_COOKIE, path: "/api/auth/callback" });
-  res.cookies.set(SESSION_COOKIE, session, sessionCookieOptions);
+  res.cookies.set(SESSION_COOKIE, jwt, sessionCookieOptions);
   return res;
 }

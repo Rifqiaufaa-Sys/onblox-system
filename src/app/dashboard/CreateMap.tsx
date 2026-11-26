@@ -72,7 +72,7 @@ export default function CreateMap() {
       >
         <span className="text-2xl">＋</span>
         <p className="mt-2 font-medium">Tambah map</p>
-        <p className="text-sm">Sepetak, ILLUZION, atau map lain</p>
+        <p className="text-sm">Map klien baru, lalu bagikan aksesnya di menu Akses</p>
       </button>
     );
   }
@@ -81,7 +81,7 @@ export default function CreateMap() {
     <form onSubmit={submit} className="glass space-y-3 rounded-3xl p-6">
       <input
         className="input"
-        placeholder="Nama map (mis. Sepetak Club)"
+        placeholder="Nama map"
         value={name}
         onChange={(e) => {
           setName(e.target.value);
@@ -89,7 +89,7 @@ export default function CreateMap() {
         }}
         autoFocus
       />
-      <input className="input font-mono" placeholder="slug (mis. sepetak)" value={slug} onChange={(e) => setSlug(autoSlug(e.target.value))} />
+      <input className="input font-mono" placeholder="slug (huruf kecil, mis. nama-map)" value={slug} onChange={(e) => setSlug(autoSlug(e.target.value))} />
       <input className="input" placeholder="Place ID (opsional)" value={placeId} onChange={(e) => setPlaceId(e.target.value.replace(/\D/g, ""))} />
       {error && <p className="text-sm text-bad">{error}</p>}
       <div className="flex gap-2">

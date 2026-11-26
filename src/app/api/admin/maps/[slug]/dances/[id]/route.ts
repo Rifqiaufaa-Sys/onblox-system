@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
-import { getMapBySlug, sql, touchMap } from "@/lib/db";
+import { requireMap } from "@/lib/access";
+import { sql, touchMap } from "@/lib/db";
 import { cleanName } from "@/lib/roblox";
 
 type Ctx = RouteContext<"/api/admin/maps/[slug]/dances/[id]">;
@@ -12,11 +12,10 @@ const Patch = z.object({
 });
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const s = await requireAdmin();
-  if (s instanceof Response) return s;
   const { slug, id } = await ctx.params;
-  const map = await getMapBySlug(slug);
-  if (!map) return Response.json({ error: "Map tidak ditemukan" }, { status: 404 });
+  const r = await requireMap(slug);
+  if (r instanceof Response) return r;
+  const { map } = r;
   const parsed = Patch.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Data tidak valid" }, { status: 400 });
   const { name, category } = parsed.data;
@@ -30,11 +29,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
-  const s = await requireAdmin();
-  if (s instanceof Response) return s;
   const { slug, id } = await ctx.params;
-  const map = await getMapBySlug(slug);
-  if (!map) return Response.json({ error: "Map tidak ditemukan" }, { status: 404 });
+  const r = await requireMap(slug);
+  if (r instanceof Response) return r;
+  const { map } = r;
   await sql()`DELETE FROM dances WHERE id = ${Number(id)} AND map_id = ${map.id}`;
   await touchMap(map.id);
   return Response.json({ ok: true });

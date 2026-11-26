@@ -36,11 +36,14 @@ export default function MapManager({
   baseUrl,
   keyHint,
   initialDances,
+  canManageKey,
 }: {
   slug: string;
   baseUrl: string;
   keyHint: string;
   initialDances: Dance[];
+  /** owner/admin studio: lihat & ganti kunci API. Klien hanya kelola dance. */
+  canManageKey: boolean;
 }) {
   const api = `/api/admin/maps/${slug}`;
   const [dances, setDances] = useState<Dance[] | null>(initialDances);
@@ -154,7 +157,18 @@ export default function MapManager({
       </section>
 
       {/* ---------- koneksi ke game ---------- */}
-      <GameConnection slug={slug} baseUrl={baseUrl} keyHint={keyHint} />
+      {canManageKey ? (
+        <GameConnection slug={slug} baseUrl={baseUrl} keyHint={keyHint} />
+      ) : (
+        <section className="rise glass rounded-3xl p-6" style={{ animationDelay: "0.05s" }}>
+          <h2 className="text-lg font-semibold">Langsung ke game</h2>
+          <p className="mt-2 text-sm text-muted">
+            Dance yang kamu tambah, ubah, atau hapus di sini otomatis muncul di menu Emote dalam game kira-kira
+            1 menit kemudian. Tidak perlu publish ulang map.
+          </p>
+          <p className="mt-4 text-xs text-muted">Sambungan ke game dipasang dan dirawat oleh tim OnBlox Studio.</p>
+        </section>
+      )}
 
       {/* ---------- daftar dance ---------- */}
       <section className="rise glass rounded-3xl p-6 lg:col-span-2">

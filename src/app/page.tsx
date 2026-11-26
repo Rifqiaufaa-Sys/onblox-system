@@ -4,7 +4,7 @@ import Hero3D from "@/components/Hero3D";
 const features = [
   { title: "Tempel ID, beres", body: "Paste satu atau puluhan ID animasi. Nama diambil otomatis dari Roblox." },
   { title: "Langsung ke game", body: "Server Roblox mengambil daftar terbaru lewat HTTP, tanpa publish ulang map." },
-  { title: "Banyak map", body: "Satu dashboard untuk Sepetak dan map lain, masing-masing punya kunci API sendiri." },
+  { title: "Eksklusif untuk klien", body: "Tiap klien commission OnBlox Studio cuma melihat map miliknya sendiri." },
 ];
 
 export default function Home() {
@@ -25,7 +25,7 @@ export default function Home() {
       </header>
 
       <section className="relative z-10 mx-auto flex max-w-6xl flex-col items-start px-6 pt-[18vh] pb-24">
-        <p className="rise glass mb-6 rounded-full px-3 py-1 text-xs text-muted">Graypolea · sistem konten map Roblox</p>
+        <p className="rise glass mb-6 rounded-full px-3 py-1 text-xs text-muted">OnBlox Studio · sistem konten map Roblox</p>
         <h1 className="rise text-gradient max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight sm:text-7xl">
           Tambah dance ke map kamu, dari mana saja.
         </h1>

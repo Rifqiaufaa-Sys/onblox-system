@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getSession, passwordLoginEnabled } from "@/lib/auth";
-import { allowlistConfigured, enabledProviders, type ProviderId } from "@/lib/oauth";
+import { enabledProviders, type ProviderId } from "@/lib/oauth";
+import { ownerConfigured } from "@/lib/access";
 import LoginForm from "@/app/login/LoginForm";
 
 const ERRORS: Record<string, string> = {
-  denied: "Akun ini belum diizinkan masuk. Minta owner menambahkan email / Discord ID kamu.",
   cancelled: "Login dibatalkan.",
   state: "Sesi login kedaluwarsa. Coba lagi.",
   token: "Gagal menghubungi Google/Discord. Coba lagi, atau cek Client ID & Secret.",
@@ -37,11 +37,19 @@ export default async function LoginOptions({ searchParams }: { searchParams: Pro
         </a>
       ))}
 
-      {providers.length > 0 && !allowlistConfigured() && (
+      {providers.length > 0 && !ownerConfigured() && (
         <p className="text-xs text-warn">
-          Allowlist kosong: isi <code>ALLOWED_EMAILS</code> / <code>ALLOWED_DISCORD_IDS</code> di Vercel supaya ada yang bisa masuk.
+          Owner belum di-set: isi <code>ALLOWED_EMAILS</code> / <code>ALLOWED_DISCORD_IDS</code> di Vercel.
         </p>
       )}
+
+      <p className="pt-2 text-center text-xs text-muted">
+        Khusus klien & tim{" "}
+        <a href="https://www.onbloxstudio.com" target="_blank" rel="noopener noreferrer" className="text-text hover:text-accent">
+          OnBlox Studio
+        </a>
+        .
+      </p>
 
       {password && (
         <details className="group pt-1" open={providers.length === 0}>

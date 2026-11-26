@@ -1,17 +1,16 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
-import { getMapBySlug, sql, touchMap, type DanceRow } from "@/lib/db";
+import { requireMap } from "@/lib/access";
+import { sql, touchMap, type DanceRow } from "@/lib/db";
 import { parseDanceList, resolveAnimation } from "@/lib/roblox";
 
 type Ctx = RouteContext<"/api/admin/maps/[slug]/dances">;
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
-  const s = await requireAdmin();
-  if (s instanceof Response) return s;
   const { slug } = await ctx.params;
-  const map = await getMapBySlug(slug);
-  if (!map) return Response.json({ error: "Map tidak ditemukan" }, { status: 404 });
+  const r = await requireMap(slug);
+  if (r instanceof Response) return r;
+  const { map } = r;
   const dances = (await sql()`
     SELECT * FROM dances WHERE map_id = ${map.id} ORDER BY created_at DESC, id DESC`) as DanceRow[];
   const { key_hash: _omit, ...publicMap } = map;
@@ -30,11 +29,11 @@ const MAX_PER_REQUEST = 150;
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const s = await requireAdmin();
-  if (s instanceof Response) return s;
   const { slug } = await ctx.params;
-  const map = await getMapBySlug(slug);
-  if (!map) return Response.json({ error: "Map tidak ditemukan" }, { status: 404 });
+  const r = await requireMap(slug);
+  if (r instanceof Response) return r;
+  const { map } = r;
+  const s = r.access.session;
 
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Data tidak valid" }, { status: 400 });

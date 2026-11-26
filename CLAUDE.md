@@ -23,9 +23,12 @@ boleh campur Inggris untuk istilah teknis).
 
 - Landing page dengan background 3D (React Three Fiber) — `src/app/page.tsx`, `src/components/Hero3D.tsx`.
 - Login: **Google + Discord** (OAuth 2 + PKCE, tanpa library, `src/lib/oauth.ts`, route
-  `/api/auth/signin/[provider]` → `/api/auth/callback/[provider]`), dibatasi allowlist env
-  `ALLOWED_EMAILS` / `ALLOWED_DISCORD_IDS`. Password `ADMIN_PASSWORD` opsional sebagai cadangan.
-  Sesi = JWT di cookie (`src/lib/auth.ts`). Semua yang login saat ini = role admin (belum per map).
+  `/api/auth/signin/[provider]` → `/api/auth/callback/[provider]`). Password `ADMIN_PASSWORD` opsional.
+  Sesi = JWT berisi identitas saja (`src/lib/auth.ts`).
+- **Akses per map** (`src/lib/access.ts`, dihitung ulang tiap request): owner (env `ALLOWED_EMAILS` /
+  `ALLOWED_DISCORD_IDS`), admin studio & klien (tabel `members` + `map_access`, dikelola di
+  `/dashboard/akses`), tamu = halaman akses eksklusif (`NoAccess`) dengan ajakan commission.
+  Klien hanya melihat map miliknya, tanpa panel kunci API. Map yang tidak boleh dibuka → 404.
 - Dashboard: daftar **map** (tiap map punya slug + kunci API sendiri; yang disimpan hanya hash-nya).
 - Kelola **dance** per map: paste banyak ID sekaligus (format bebas, lihat `parseDanceList`),
   nama otomatis dari katalog Roblox (`economy.roblox.com/v2/assets/<id>/details`, AssetTypeId 24/61),
@@ -46,9 +49,9 @@ boleh campur Inggris untuk istilah teknis).
     build gagal ("uncached or runtime data during prerendering"). Bungkus komponen dinamis dengan Suspense
     (lihat `src/app/dashboard/layout.tsx`, `src/app/login/page.tsx`).
   - File `layout.tsx`/`page.tsx` jangan mengekspor komponen tambahan; taruh di `src/components/`.
-  - **Auth: tiap `page.tsx` di dashboard wajib `await requireSession()` di baris pertama.** Cek di layout
-    tidak cukup — page dirender paralel dan datanya ikut terkirim di RSC payload walau layout redirect.
-    Route handler admin pakai `requireAdmin()`.
+  - **Auth: tiap `page.tsx` di dashboard wajib cek `getAccess()` sendiri** (lihat page yang ada). Cek di
+    layout tidak cukup — page dirender paralel dan datanya ikut terkirim di RSC payload walau layout redirect.
+    Route handler admin pakai `requireMember()` / `requireStaff()` / `requireMap(slug)`.
 - Font: paket **`geist`** lokal (bukan `next/font/google`) supaya build tidak butuh akses Google Fonts.
 - Database: **Neon Postgres** via `@neondatabase/serverless` (`src/lib/db.ts`). Tabel dibuat otomatis oleh
   `ensureSchema()` (maps, dances). Tidak ada ORM/migrasi; ubah skema dengan `ALTER TABLE ... IF NOT EXISTS`
@@ -65,7 +68,7 @@ boleh campur Inggris untuk istilah teknis).
 | `SESSION_SECRET` | string acak ≥ 32 karakter |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth client Google (boleh pakai client yang sama dengan onbloxstudio.com) |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | aplikasi Discord "Gravely" (sama dengan onbloxstudio.com) |
-| `ALLOWED_EMAILS` / `ALLOWED_DISCORD_IDS` | allowlist, dipisah koma |
+| `ALLOWED_EMAILS` / `ALLOWED_DISCORD_IDS` | owner, dipisah koma (member lain lewat menu Akses) |
 | `ADMIN_PASSWORD` | opsional, password cadangan |
 
 Redirect URI per domain: `https://<domain>/api/auth/callback/google` dan `.../discord`.
@@ -92,7 +95,15 @@ Dance dari modul tetap jalan; website hanya menambah.
 ## Roadmap
 
 1. Sambungkan dance website ↔ GraypoleaDance (di atas).
-2. ~~Login Google/Discord~~ (sudah). Berikutnya: Login with Roblox (OAuth) dan akses per map untuk
-   staf/klien commission (role: owner, admin map) — allowlist pindah dari env ke tabel database.
+2. ~~Login Google/Discord + akses per map~~ (sudah). Berikutnya mungkin: Login with Roblox, SSO dengan
+   onbloxstudio.com lewat cookie `.onbloxstudio.com`.
 3. Multi-klien: tiap commission/map klien punya ruang sendiri.
 4. Modul lain lewat pola yang sama: lagu (GraypoleaMusic), title, pengumuman.
+
+## Tes lokal tanpa Neon
+
+Tidak ada Postgres di PC ini. Untuk tes end-to-end dipakai server tiruan Neon HTTP di atas PGlite
+(di luar repo), lalu `next start` dengan `DATABASE_URL=postgresql://u:p@localhost/db` dan
+`NEON_FETCH_ENDPOINT=http://localhost:<port>/sql` (hook di `src/lib/db.ts`). Mock harus mengirim nilai
+sebagai teks Postgres (array `{1,2}`, tanggal ISO). Setelah mock di-reset, restart `next start` juga
+(`ensureSchema` di-cache per proses).

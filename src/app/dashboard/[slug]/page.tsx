@@ -1,15 +1,19 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { getMapBySlug, sql, type DanceRow } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { sql, type DanceRow } from "@/lib/db";
+import { getAccess, canOpenMap, isStaff } from "@/lib/access";
+import { getMapBySlug } from "@/lib/db";
 import MapManager from "./MapManager";
 
 export default async function MapPage({ params }: PageProps<"/dashboard/[slug]">) {
-  await requireSession();
+  // cek akses di page sendiri (bukan cuma di layout) — lihat CLAUDE.md
+  const access = await getAccess();
+  if (!access) redirect("/login");
   const { slug } = await params;
-  const map = await getMapBySlug(slug);
-  if (!map) notFound();
+  const map = access.role === "none" ? null : await getMapBySlug(slug);
+  // map yang tidak boleh dibuka diperlakukan seperti tidak ada
+  if (!map || !canOpenMap(access, map.id)) notFound();
 
   const dances = (await sql()`
     SELECT id, animation_id::text AS animation_id, name, category, creator, created_at
@@ -32,7 +36,13 @@ export default async function MapPage({ params }: PageProps<"/dashboard/[slug]">
           {map.place_id ? ` · place ${map.place_id}` : ""}
         </p>
       </div>
-      <MapManager slug={map.slug} baseUrl={baseUrl} keyHint={map.key_hint} initialDances={dances} />
+      <MapManager
+        slug={map.slug}
+        baseUrl={baseUrl}
+        keyHint={map.key_hint}
+        initialDances={dances}
+        canManageKey={isStaff(access)}
+      />
     </div>
   );
 }

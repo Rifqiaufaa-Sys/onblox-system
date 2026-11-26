@@ -1,6 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
@@ -21,16 +20,19 @@ function secret() {
 
 export type Provider = "google" | "discord" | "password";
 
+/**
+ * Identitas orang yang login. Hak aksesnya (owner/admin/klien/tidak ada) TIDAK disimpan di sini,
+ * tapi dihitung ulang tiap request di src/lib/access.ts, supaya mencabut akses langsung berlaku.
+ */
 export type Session = {
   /** mis. "google:<sub>", "discord:<id>", "password:admin" */
   sub: string;
-  role: "admin";
   name: string;
   avatar: string | null;
   provider: Provider;
+  /** hanya diisi kalau email sudah terverifikasi di Google/Discord */
+  email: string | null;
 };
-
-export type NewSession = Pick<Session, "sub" | "name" | "avatar" | "provider">;
 
 export const sessionCookieOptions = {
   httpOnly: true,
@@ -40,8 +42,8 @@ export const sessionCookieOptions = {
   maxAge: SESSION_DAYS * 24 * 60 * 60,
 };
 
-export async function signSession(s: NewSession) {
-  return new SignJWT({ role: "admin", name: s.name, avatar: s.avatar, provider: s.provider })
+export async function signSession(s: Session) {
+  return new SignJWT({ kind: "onblox", name: s.name, avatar: s.avatar, provider: s.provider, email: s.email })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(s.sub)
     .setIssuedAt()
@@ -49,7 +51,7 @@ export async function signSession(s: NewSession) {
     .sign(secret());
 }
 
-export async function createSession(s: NewSession) {
+export async function createSession(s: Session) {
   const token = await signSession(s);
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, sessionCookieOptions);
@@ -66,29 +68,18 @@ export async function getSession(): Promise<Session | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    if (payload.role !== "admin" || !payload.sub) return null;
-    const provider = (payload.provider as Provider | undefined) ?? "password";
+    if (!payload.sub) return null;
+    const str = (v: unknown) => (typeof v === "string" && v ? v : null);
     return {
       sub: payload.sub,
-      role: "admin",
-      name: typeof payload.name === "string" ? payload.name : "Admin",
-      avatar: typeof payload.avatar === "string" ? payload.avatar : null,
-      provider,
+      name: str(payload.name) ?? "User",
+      avatar: str(payload.avatar),
+      provider: (str(payload.provider) as Provider | null) ?? "password",
+      email: str(payload.email),
     };
   } catch {
     return null;
   }
-}
-
-/**
- * Untuk server component: wajib dipanggil di AWAL tiap page yang membaca data rahasia.
- * Cek di layout saja TIDAK cukup — Next merender page paralel dengan layout, jadi data page
- * tetap terkirim di RSC payload walau layout me-redirect.
- */
-export async function requireSession(): Promise<Session> {
-  const s = await getSession();
-  if (!s) redirect("/login");
-  return s;
 }
 
 export function passwordLoginEnabled() {
@@ -117,11 +108,4 @@ export function keyMatches(key: string, hash: string) {
   const a = Buffer.from(hashKey(key), "hex");
   const b = Buffer.from(hash, "hex");
   return a.length === b.length && timingSafeEqual(a, b);
-}
-
-/** Helper untuk route handler admin. */
-export async function requireAdmin(): Promise<Session | Response> {
-  const s = await getSession();
-  if (!s) return Response.json({ error: "Belum login" }, { status: 401 });
-  return s;
 }

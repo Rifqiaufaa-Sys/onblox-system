@@ -2,9 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 /**
  * Login dengan Google / Discord (OAuth 2 + PKCE), tanpa library tambahan.
- * Siapa yang boleh masuk ditentukan oleh allowlist di env:
- *   ALLOWED_EMAILS       = email Google/Discord (terverifikasi), pisahkan dengan koma
- *   ALLOWED_DISCORD_IDS  = ID user Discord, pisahkan dengan koma
+ * Login hanya membuktikan identitas; hak akses diatur di src/lib/access.ts.
  * Redirect URI yang harus didaftarkan: <origin>/api/auth/callback/<google|discord>
  */
 export const PROVIDERS = ["google", "discord"] as const;
@@ -157,21 +155,4 @@ export async function fetchUser(id: ProviderId, accessToken: string): Promise<OA
     name: u.global_name || u.username,
     avatar: u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=64` : null,
   };
-}
-
-function list(name: string) {
-  return (process.env[name] ?? "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-export function allowlistConfigured() {
-  return list("ALLOWED_EMAILS").length > 0 || list("ALLOWED_DISCORD_IDS").length > 0;
-}
-
-/** Hanya akun di allowlist yang boleh masuk. Email harus sudah terverifikasi di provider-nya. */
-export function isAllowed(user: OAuthUser) {
-  if (user.provider === "discord" && list("ALLOWED_DISCORD_IDS").includes(user.id)) return true;
-  return Boolean(user.email && user.emailVerified && list("ALLOWED_EMAILS").includes(user.email));
 }
