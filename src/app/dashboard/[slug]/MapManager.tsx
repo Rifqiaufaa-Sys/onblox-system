@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { KeyReveal } from "@/components/KeyReveal";
+import PushPanel, { type PushInfo } from "@/components/PushPanel";
 
 export type Dance = {
   id: number;
@@ -42,6 +43,9 @@ export default function MapManager({
   canManageKey,
   script,
   syncAgeSeconds,
+  push,
+  instant,
+  placeId,
 }: {
   slug: string;
   baseUrl: string;
@@ -53,6 +57,11 @@ export default function MapManager({
   script: string | null;
   /** detik sejak server game terakhir mengambil daftar; null = belum pernah */
   syncAgeSeconds: number | null;
+  /** pengaturan sinyal instan (hanya owner/admin) */
+  push: PushInfo | null;
+  /** sinyal instan aktif → perubahan langsung sampai ke server game */
+  instant: boolean;
+  placeId?: string;
 }) {
   const api = `/api/admin/maps/${slug}`;
   const [dances, setDances] = useState<Dance[] | null>(initialDances);
@@ -182,7 +191,15 @@ export default function MapManager({
 
       {/* ---------- koneksi ke game ---------- */}
       {canManageKey ? (
-        <GameConnection slug={slug} baseUrl={baseUrl} keyHint={keyHint} script={script} syncAgeSeconds={syncAgeSeconds} />
+        <GameConnection
+          slug={slug}
+          baseUrl={baseUrl}
+          keyHint={keyHint}
+          script={script}
+          syncAgeSeconds={syncAgeSeconds}
+          push={push}
+          placeId={placeId}
+        />
       ) : (
         <section className="rise glass min-w-0 rounded-3xl p-6" style={{ animationDelay: "0.05s" }}>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -190,8 +207,8 @@ export default function MapManager({
             <SyncPill ageSeconds={syncAgeSeconds} />
           </div>
           <p className="mt-2 text-sm text-muted">
-            Dance yang kamu tambah, ubah, atau hapus di sini otomatis masuk ke menu Emote dalam game (paling lama
-            5 menit, pemain tidak perlu rejoin). Server baru selalu memuat daftar terbaru. Tidak perlu publish ulang map.
+            Dance yang kamu tambah, ubah, atau hapus di sini otomatis masuk ke menu Emote dalam game
+            {instant ? " dalam beberapa detik" : " (paling lama 5 menit)"}, pemain tidak perlu rejoin. Tidak perlu publish ulang map.
           </p>
           <p className="mt-4 text-xs text-muted">Sambungan ke game dipasang dan dirawat oleh tim OnBlox Studio.</p>
         </section>
@@ -372,12 +389,16 @@ function GameConnection({
   keyHint,
   script,
   syncAgeSeconds,
+  push,
+  placeId,
 }: {
   slug: string;
   baseUrl: string;
   keyHint: string;
   script: string | null;
   syncAgeSeconds: number | null;
+  push: PushInfo | null;
+  placeId?: string;
 }) {
   const [newKey, setNewKey] = useState<string | null>(null);
   const [hint, setHint] = useState(keyHint);
@@ -497,6 +518,7 @@ function GameConnection({
         </div>
       </dl>
       {newKey && <KeyReveal apiKey={newKey} />}
+      {push && <PushPanel slug={slug} info={push} placeHint={placeId} />}
     </section>
   );
 }

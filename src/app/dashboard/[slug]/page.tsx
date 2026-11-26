@@ -19,7 +19,18 @@ export default async function MapPage({ params }: PageProps<"/dashboard/[slug]">
 
   const staff = isStaff(access);
   const [sync] = (await sql()`
-    SELECT EXTRACT(EPOCH FROM now() - last_sync_at)::int AS age FROM maps WHERE id = ${map.id}`) as { age: number | null }[];
+    SELECT EXTRACT(EPOCH FROM now() - last_sync_at)::int AS age,
+           EXTRACT(EPOCH FROM now() - push_last_at)::int AS push_age
+    FROM maps WHERE id = ${map.id}`) as { age: number | null; push_age: number | null }[];
+  const instant = Boolean(map.universe_id && map.cloud_key_enc);
+  const push = staff
+    ? {
+        universeId: map.universe_id ? String(map.universe_id) : null,
+        keyHint: map.cloud_key_hint ?? null,
+        lastAgeSeconds: sync?.push_age === null || sync?.push_age === undefined ? null : Number(sync.push_age),
+        error: map.push_last_error ?? null,
+      }
+    : null;
   const script = staff
     ? await readFile(path.join(process.cwd(), "roblox", "OnBloxDances.server.lua"), "utf8").catch(() => null)
     : null;
@@ -52,6 +63,9 @@ export default async function MapPage({ params }: PageProps<"/dashboard/[slug]">
         initialDances={dances}
         canManageKey={staff}
         script={script}
+        push={push}
+        instant={instant}
+        placeId={map.place_id ? String(map.place_id) : undefined}
         syncAgeSeconds={sync?.age === null || sync?.age === undefined ? null : Number(sync.age)}
       />
     </div>

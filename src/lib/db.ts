@@ -79,6 +79,12 @@ export function ensureSchema(): Promise<void> {
       )`;
     // kapan server game terakhir mengambil daftar (status "tersambung ke game")
     await db`ALTER TABLE maps ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ`;
+    // sinyal instan ke server game (Open Cloud MessagingService); API key disimpan terenkripsi
+    await db`ALTER TABLE maps ADD COLUMN IF NOT EXISTS universe_id BIGINT`;
+    await db`ALTER TABLE maps ADD COLUMN IF NOT EXISTS cloud_key_enc TEXT`;
+    await db`ALTER TABLE maps ADD COLUMN IF NOT EXISTS cloud_key_hint TEXT`;
+    await db`ALTER TABLE maps ADD COLUMN IF NOT EXISTS push_last_at TIMESTAMPTZ`;
+    await db`ALTER TABLE maps ADD COLUMN IF NOT EXISTS push_last_error TEXT`;
     await db`
       CREATE TABLE IF NOT EXISTS map_access (
         member_id  INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
@@ -101,6 +107,11 @@ export type MapRow = {
   created_at: string;
   updated_at: string;
   last_sync_at?: string | null;
+  universe_id?: string | null;
+  cloud_key_enc?: string | null;
+  cloud_key_hint?: string | null;
+  push_last_at?: string | null;
+  push_last_error?: string | null;
   dance_count?: number;
 };
 

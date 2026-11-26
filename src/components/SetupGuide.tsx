@@ -29,7 +29,7 @@ export default function SetupGuide({ s }: { s: GuideState }) {
     {
       done: s.dances > 0,
       title: "Tambah dance",
-      body: "Paste ID animasi di halaman map. Tidak ada tombol publish: server yang jalan mengambil daftar baru paling lama 5 menit, server baru langsung.",
+      body: "Paste ID animasi di halaman map. Tidak ada tombol publish: server yang online mengambil daftar baru dalam hitungan detik (kalau Sinyal instan aktif) atau paling lama 5 menit.",
       href: s.firstMapSlug ? `/dashboard/${s.firstMapSlug}` : null,
       cta: "Tambah dance",
     },

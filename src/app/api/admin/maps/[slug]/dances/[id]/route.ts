@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireMap } from "@/lib/access";
+import { notifyGame } from "@/lib/push";
 import { sql, touchMap } from "@/lib/db";
 import { cleanName, resolveAnimation } from "@/lib/roblox";
 
@@ -53,6 +54,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       category = COALESCE(${category ?? null}, category)
     WHERE id = ${danceId} AND map_id = ${map.id}`;
   await touchMap(map.id);
+  notifyGame(map.id);
   return Response.json({ ok: true });
 }
 
@@ -63,5 +65,6 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const { map } = r;
   await sql()`DELETE FROM dances WHERE id = ${Number(id)} AND map_id = ${map.id}`;
   await touchMap(map.id);
+  notifyGame(map.id);
   return Response.json({ ok: true });
 }

@@ -83,6 +83,17 @@ Panduan yang sama tampil sebagai checklist "Mulai di sini" di halaman Map.
    - `OnBloxDances` (Script) — isi dari [`roblox/OnBloxDances.server.lua`](roblox/OnBloxDances.server.lua).
 3. Daftar dance tersedia di `ReplicatedStorage.OnBlox.Dances` (JSON) untuk sistem dance (GraypoleaDance).
 
+## Sinyal instan (opsional, disarankan)
+
+Tanpa ini, server game yang sedang online mengambil daftar baru tiap 5 menit. Dengan ini, setiap dance
+berubah website langsung memberi tahu semua server lewat Roblox Open Cloud MessagingService.
+
+1. create.roblox.com → Dashboard → Open Cloud → API Keys → Create API Key.
+2. Access Permissions: **Messaging Service** → pilih game → operasi **publish**.
+3. Accepted IP Addresses: `0.0.0.0/0`. Save & Generate Key.
+4. Dashboard OnBlox → halaman map → panel **Sambungan ke game → Sinyal instan**: isi Place ID / Universe ID
+   + key → **Simpan & tes**. Key disimpan terenkripsi.
+
 ## API untuk game
 
 ```

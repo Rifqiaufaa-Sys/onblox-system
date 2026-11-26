@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireMap } from "@/lib/access";
+import { notifyGame } from "@/lib/push";
 import { sql, touchMap, type DanceRow } from "@/lib/db";
 import { parseDanceList, resolveAnimation } from "@/lib/roblox";
 
@@ -80,6 +81,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       results.push({ id: wanted.id, status: "added", name, verified: r.verified });
     }
   }
-  if (results.some((r) => r.status === "added")) await touchMap(map.id);
+  if (results.some((r) => r.status === "added")) {
+    await touchMap(map.id);
+    notifyGame(map.id);
+  }
   return Response.json({ results });
 }

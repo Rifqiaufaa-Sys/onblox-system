@@ -77,6 +77,7 @@ boleh campur Inggris untuk istilah teknis).
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | aplikasi Discord "Gravely" (sama dengan onbloxstudio.com) |
 | `ALLOWED_EMAILS` / `ALLOWED_DISCORD_IDS` | owner, dipisah koma (member lain lewat menu Akses) |
 | `ADMIN_PASSWORD` | opsional, password cadangan |
+| `CLOUD_KEY_SECRET` | opsional, kunci enkripsi Open Cloud API key (default: turunan `SESSION_SECRET`) |
 
 Redirect URI per domain: `https://<domain>/api/auth/callback/google` dan `.../discord`.
 
@@ -96,7 +97,12 @@ Jangan pernah commit `.env*` (kecuali `.env.example`).
   + `ServerScriptService.OnBlox.OnBloxDances` (= `roblox/OnBloxDances.server.lua`, harus identik).
 - Waktu ambil daftar: saat server mulai, instan via MessagingService topik `OnBloxSystem` (pesan = slug /
   `*`), dan cadangan tiap `RefreshSeconds` (default 300 dtk, pakai `?since=` → balasan `{changed:false}`).
-  Website BELUM mengirim sinyal MessagingService (butuh Open Cloud API key + universe ID per map).
+  Website mengirim sinyal itu (`src/lib/push.ts`) setiap dance ditambah/diubah/dihapus, via
+  `POST https://apis.roblox.com/cloud/v2/universes/{universe}:publishMessage` `{topic, message: slug}`
+  di dalam `after()`. Per map: `maps.universe_id` + `cloud_key_enc` (AES-256-GCM, kunci dari
+  `CLOUD_KEY_SECRET` atau `SESSION_SECRET` — ganti SESSION_SECRET = key harus dimasukkan ulang).
+  Diatur owner/admin di panel "Sinyal instan" (`/api/admin/maps/[slug]/cloud`: PUT simpan+tes, POST kirim,
+  DELETE matikan). Key diuji dengan pesan `__onblox_ping__` (diabaikan game) sebelum disimpan.
 - `GraypoleaDance.animation_system` (blok "OnBlox System" di akhir): baca `ReplicatedStorage.OnBlox.Dances`,
   tambah dance website ke `animations`/`animations_index`/`sanitized_animations` (ID yang sudah ada di modul
   dilewati; dihapus di website → `animations_index[id]=nil`), lalu `Events.animations_changed:FireAllClients()`.
@@ -115,8 +121,8 @@ Jangan pernah commit `.env*` (kecuali `.env.example`).
 
 ## Roadmap
 
-1. ~~Sambungkan dance website ↔ GraypoleaDance~~ (terpasang). Berikutnya: sinyal instan dari website
-   (Open Cloud MessagingService) supaya update tidak menunggu cek 5 menit.
+1. ~~Sambungkan dance website ↔ GraypoleaDance~~ dan ~~sinyal instan~~ (sudah). Tinggal: isi Open Cloud
+   API key untuk Sepetak di panel "Sinyal instan", lalu publish Sepetak.
 2. ~~Login Google/Discord + akses per map~~ (sudah). Berikutnya mungkin: Login with Roblox, SSO dengan
    onbloxstudio.com lewat cookie `.onbloxstudio.com`.
 3. Multi-klien: tiap commission/map klien punya ruang sendiri.
