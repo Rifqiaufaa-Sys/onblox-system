@@ -29,6 +29,13 @@ boleh campur Inggris untuk istilah teknis).
   `ALLOWED_DISCORD_IDS`), admin studio & klien (tabel `members` + `map_access`, dikelola di
   `/dashboard/akses`), tamu = halaman akses eksklusif (`NoAccess`) dengan ajakan commission.
   Klien hanya melihat map miliknya, tanpa panel kunci API. Map yang tidak boleh dibuka → 404.
+- Tabel `accounts` = semua yang pernah login (diisi di OAuth callback) → "Permintaan akses" di menu Akses.
+- Mode pratinjau ("Lihat sebagai"): cookie `onblox_preview`, hanya dihormati kalau hak ASLI = owner/admin,
+  dan hanya memengaruhi `getAccess()` (halaman). API selalu pakai `accessFor()` = hak asli.
+- `maps.last_sync_at` diisi oleh API game (maks 1×/menit) → status "Game online" + checklist "Mulai di sini".
+- Panel "Sambungan ke game" membaca `roblox/OnBloxDances.server.lua` saat render (lihat
+  `outputFileTracingIncludes` di `next.config.ts`), jadi file itu satu-satunya sumber script.
+- Mobile: grid pakai `grid-cols-1` + `min-w-0` (blok `<pre>` panjang bisa melebarkan kolom grid).
 - Dashboard: daftar **map** (tiap map punya slug + kunci API sendiri; yang disimpan hanya hash-nya).
 - Kelola **dance** per map: paste banyak ID sekaligus (format bebas, lihat `parseDanceList`),
   nama otomatis dari katalog Roblox (`economy.roblox.com/v2/assets/<id>/details`, AssetTypeId 24/61),

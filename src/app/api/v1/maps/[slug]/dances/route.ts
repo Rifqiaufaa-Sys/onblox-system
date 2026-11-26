@@ -20,6 +20,14 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/v1/maps/[slu
   if (!map || !key || !keyMatches(key, map.key_hash)) {
     return Response.json({ error: "Map atau kunci API salah" }, { status: 401 });
   }
+  // catat "game terakhir sinkron" (paling sering 1x per menit, tidak mengubah versi daftar)
+  try {
+    await sql()`
+      UPDATE maps SET last_sync_at = now()
+      WHERE id = ${map.id} AND (last_sync_at IS NULL OR last_sync_at < now() - interval '1 minute')`;
+  } catch {
+    /* status sinkron bukan hal penting; jangan sampai menggagalkan game */
+  }
   const version = new Date(map.updated_at).getTime().toString();
   if (req.nextUrl.searchParams.get("since") === version) {
     return Response.json({ changed: false, version });

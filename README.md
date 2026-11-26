@@ -45,6 +45,22 @@ Kalau login gagal, alasan aslinya tercatat di Vercel → Logs (cari `[oauth:`), 
 Orang yang belum terdaftar bisa menyalin Discord ID / email-nya dari halaman akses eksklusif lalu
 mengirimkannya ke tim OnBlox. Mencabut akses langsung berlaku (hak akses dicek ulang tiap request).
 
+- **Permintaan akses**: semua yang pernah login tapi belum terdaftar muncul di menu Akses (ada badge
+  jumlahnya di navigasi). Klik **Beri akses** → form terisi otomatis → centang map → simpan. Atau **Abaikan**.
+- **Lihat sebagai**: owner/admin bisa pratinjau tampilan tamu atau member tertentu. Hanya tampilan halaman;
+  API tetap memakai hak akses asli. Banner kuning → **Keluar pratinjau**.
+
+## Alur kerja singkat (owner)
+
+1. **Map → Tambah map** → simpan kunci API.
+2. Buka map → panel **Sambungan ke game**: ikuti 5 langkah (Allow HTTP Requests, folder `OnBlox`,
+   `Config` + `OnBloxDances` lewat tombol Salin, publish sekali). Status berubah jadi **Game online**.
+3. Paste ID dance. Tidak ada tombol publish: game mengambil daftar baru tiap ±60 detik.
+4. Minta klien login → **Akses → Permintaan akses → Beri akses** → centang map-nya.
+5. Cek hasilnya dengan **Lihat sebagai** klien itu.
+
+Panduan yang sama tampil sebagai checklist "Mulai di sini" di halaman Map.
+
 ## Pakai
 
 1. Buka `https://<project>.vercel.app/dashboard`, masuk dengan Google/Discord (atau password cadangan).

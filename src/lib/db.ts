@@ -61,6 +61,22 @@ export function ensureSchema(): Promise<void> {
         created_by     TEXT,
         created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       )`;
+    // semua orang yang pernah login (termasuk yang belum punya akses) → daftar "Permintaan akses"
+    await db`
+      CREATE TABLE IF NOT EXISTS accounts (
+        sub             TEXT PRIMARY KEY,
+        provider        TEXT NOT NULL,
+        name            TEXT NOT NULL,
+        email           TEXT,
+        discord_id      TEXT,
+        avatar          TEXT,
+        first_login_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        last_login_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        login_count     INTEGER NOT NULL DEFAULT 1,
+        dismissed       BOOLEAN NOT NULL DEFAULT false
+      )`;
+    // kapan server game terakhir mengambil daftar (status "tersambung ke game")
+    await db`ALTER TABLE maps ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ`;
     await db`
       CREATE TABLE IF NOT EXISTS map_access (
         member_id  INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
@@ -82,7 +98,21 @@ export type MapRow = {
   key_hint: string;
   created_at: string;
   updated_at: string;
+  last_sync_at?: string | null;
   dance_count?: number;
+};
+
+export type AccountRow = {
+  sub: string;
+  provider: string;
+  name: string;
+  email: string | null;
+  discord_id: string | null;
+  avatar: string | null;
+  first_login_at: string;
+  last_login_at: string;
+  login_count: number;
+  dismissed: boolean;
 };
 
 export type DanceRow = {

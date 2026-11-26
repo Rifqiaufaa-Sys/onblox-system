@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { sql, type DanceRow } from "@/lib/db";
 import { getAccess, canOpenMap, isStaff } from "@/lib/access";
 import { getMapBySlug } from "@/lib/db";
@@ -14,6 +16,13 @@ export default async function MapPage({ params }: PageProps<"/dashboard/[slug]">
   const map = access.role === "none" ? null : await getMapBySlug(slug);
   // map yang tidak boleh dibuka diperlakukan seperti tidak ada
   if (!map || !canOpenMap(access, map.id)) notFound();
+
+  const staff = isStaff(access);
+  const [sync] = (await sql()`
+    SELECT EXTRACT(EPOCH FROM now() - last_sync_at)::int AS age FROM maps WHERE id = ${map.id}`) as { age: number | null }[];
+  const script = staff
+    ? await readFile(path.join(process.cwd(), "roblox", "OnBloxDances.server.lua"), "utf8").catch(() => null)
+    : null;
 
   const dances = (await sql()`
     SELECT id, animation_id::text AS animation_id, name, category, creator, created_at
@@ -41,7 +50,9 @@ export default async function MapPage({ params }: PageProps<"/dashboard/[slug]">
         baseUrl={baseUrl}
         keyHint={map.key_hint}
         initialDances={dances}
-        canManageKey={isStaff(access)}
+        canManageKey={staff}
+        script={script}
+        syncAgeSeconds={sync?.age === null || sync?.age === undefined ? null : Number(sync.age)}
       />
     </div>
   );

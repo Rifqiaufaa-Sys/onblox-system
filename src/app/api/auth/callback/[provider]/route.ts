@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, sessionCookieOptions, signSession, type Session } from "@/lib/auth";
 import { findMember } from "@/lib/access";
-import { sql } from "@/lib/db";
+import { ensureSchema, sql } from "@/lib/db";
 import { OAUTH_COOKIE, exchangeCode, fetchUser, isProvider, providerEnabled } from "@/lib/oauth";
 
 /**
@@ -46,8 +46,16 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/auth/callbac
     email: user.emailVerified ? user.email : null,
   };
 
-  // catat login terakhir + foto/nama akun di daftar member (kalau terdaftar). Gagal pun tidak masalah.
+  // catat login (semua orang, untuk daftar "Permintaan akses") + update info member. Gagal pun tidak masalah.
   try {
+    await ensureSchema();
+    await sql()`
+      INSERT INTO accounts (sub, provider, name, email, discord_id, avatar)
+      VALUES (${session.sub}, ${user.provider}, ${user.name}, ${session.email},
+              ${user.provider === "discord" ? user.id : null}, ${user.avatar})
+      ON CONFLICT (sub) DO UPDATE SET
+        name = EXCLUDED.name, email = EXCLUDED.email, avatar = EXCLUDED.avatar,
+        last_login_at = now(), login_count = accounts.login_count + 1`;
     const member = await findMember(session);
     if (member) {
       await sql()`

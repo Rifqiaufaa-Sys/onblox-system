@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ensureSchema, sql, type MapRow } from "@/lib/db";
-import { getAccess, isStaff, type Access } from "@/lib/access";
+import { getAccess, isStaff, pendingRequests, type Access } from "@/lib/access";
+import SetupGuide, { type GuideState } from "@/components/SetupGuide";
 import SetupNeeded from "@/components/SetupNeeded";
 import NoAccess from "@/components/NoAccess";
 import CreateMap from "./CreateMap";
@@ -9,18 +10,33 @@ import CreateMap from "./CreateMap";
 export default async function DashboardPage() {
   // cek akses di page sendiri (bukan cuma di layout) — lihat CLAUDE.md
   let access: Access | null;
-  let maps: MapRow[] = [];
+  let maps: (MapRow & { sync_age_s: number | null })[] = [];
+  let guide: GuideState | null = null;
   try {
     access = await getAccess();
     if (access && access.role !== "none") {
       await ensureSchema();
       const ids = access.mapIds === "all" ? null : access.mapIds;
       maps = (await sql()`
-        SELECT m.id, m.slug, m.name, m.place_id, m.key_hint, m.created_at, m.updated_at,
+        SELECT m.id, m.slug, m.name, m.place_id, m.key_hint, m.created_at, m.updated_at, m.last_sync_at,
+               EXTRACT(EPOCH FROM now() - m.last_sync_at)::int AS sync_age_s,
                COUNT(d.id)::int AS dance_count
         FROM maps m LEFT JOIN dances d ON d.map_id = m.id
         WHERE ${ids}::int[] IS NULL OR m.id = ANY(${ids}::int[])
-        GROUP BY m.id ORDER BY m.created_at ASC`) as MapRow[];
+        GROUP BY m.id ORDER BY m.created_at ASC`) as (MapRow & { sync_age_s: number | null })[];
+      if (isStaff(access)) {
+        const [c] = (await sql()`
+          SELECT COUNT(DISTINCT a.member_id)::int AS n FROM map_access a
+          JOIN members m ON m.id = a.member_id WHERE m.role = 'client'`) as { n: number }[];
+        guide = {
+          maps: maps.length,
+          synced: maps.some((m) => m.last_sync_at),
+          dances: maps.reduce((t, m) => t + Number(m.dance_count ?? 0), 0),
+          clients: Number(c?.n ?? 0),
+          pending: access.preview ? 0 : (await pendingRequests(50)).length,
+          firstMapSlug: maps[0]?.slug ?? null,
+        };
+      }
     }
   } catch (e) {
     return <SetupNeeded message={String((e as Error).message)} />;
@@ -41,13 +57,15 @@ export default async function DashboardPage() {
         </p>
       </div>
 
+      {guide && <SetupGuide s={guide} />}
+
       {!staff && maps.length === 0 ? (
         <div className="rise glass rounded-3xl p-8 text-center">
           <p className="font-medium">Belum ada map yang dibagikan ke kamu.</p>
           <p className="mt-1 text-sm text-muted">Tim OnBlox akan menambahkan map kamu setelah sistemnya terpasang di game.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {maps.map((m, i) => (
             <Link
               key={m.id}
@@ -61,12 +79,27 @@ export default async function DashboardPage() {
               </div>
               <p className="mt-6 text-4xl font-semibold tracking-tight">{m.dance_count ?? 0}</p>
               <p className="text-sm text-muted">dance dari website</p>
-              <p className="mt-4 text-xs text-muted transition group-hover:text-accent">Kelola →</p>
+              <div className="mt-4 flex items-center justify-between gap-3 text-xs">
+                <SyncStatus ageSeconds={m.sync_age_s === null ? null : Number(m.sync_age_s)} />
+                <span className="text-muted transition group-hover:text-accent">Kelola →</span>
+              </div>
             </Link>
           ))}
           {staff && <CreateMap />}
         </div>
       )}
     </div>
+  );
+}
+
+/** Status sambungan game, dari kapan server Roblox terakhir mengambil daftar dance. */
+function SyncStatus({ ageSeconds }: { ageSeconds: number | null }) {
+  if (ageSeconds === null) return <span className="text-warn">○ Belum tersambung ke game</span>;
+  const min = ageSeconds / 60;
+  const label = min < 1 ? "barusan" : min < 60 ? `${Math.floor(min)} mnt lalu` : min < 1440 ? `${Math.floor(min / 60)} jam lalu` : `${Math.floor(min / 1440)} hari lalu`;
+  return min < 10 ? (
+    <span className="text-ok">● Game online · {label}</span>
+  ) : (
+    <span className="text-muted">● Terakhir sinkron {label}</span>
   );
 }

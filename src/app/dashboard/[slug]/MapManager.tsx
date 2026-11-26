@@ -37,6 +37,8 @@ export default function MapManager({
   keyHint,
   initialDances,
   canManageKey,
+  script,
+  syncAgeSeconds,
 }: {
   slug: string;
   baseUrl: string;
@@ -44,6 +46,10 @@ export default function MapManager({
   initialDances: Dance[];
   /** owner/admin studio: lihat & ganti kunci API. Klien hanya kelola dance. */
   canManageKey: boolean;
+  /** isi roblox/OnBloxDances.server.lua (hanya untuk owner/admin) */
+  script: string | null;
+  /** detik sejak server game terakhir mengambil daftar; null = belum pernah */
+  syncAgeSeconds: number | null;
 }) {
   const api = `/api/admin/maps/${slug}`;
   const [dances, setDances] = useState<Dance[] | null>(initialDances);
@@ -105,9 +111,9 @@ export default function MapManager({
   }, [dances, query]);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
       {/* ---------- tambah dance ---------- */}
-      <section className="rise glass rounded-3xl p-6">
+      <section className="rise glass min-w-0 rounded-3xl p-6">
         <h2 className="text-lg font-semibold">Tambah dance</h2>
         <p className="mt-1 text-sm text-muted">
           Paste ID animasi, satu per baris. Bisa juga format <span className="font-mono">Nama : rbxassetid://ID</span>.
@@ -158,10 +164,13 @@ export default function MapManager({
 
       {/* ---------- koneksi ke game ---------- */}
       {canManageKey ? (
-        <GameConnection slug={slug} baseUrl={baseUrl} keyHint={keyHint} />
+        <GameConnection slug={slug} baseUrl={baseUrl} keyHint={keyHint} script={script} syncAgeSeconds={syncAgeSeconds} />
       ) : (
-        <section className="rise glass rounded-3xl p-6" style={{ animationDelay: "0.05s" }}>
-          <h2 className="text-lg font-semibold">Langsung ke game</h2>
+        <section className="rise glass min-w-0 rounded-3xl p-6" style={{ animationDelay: "0.05s" }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Langsung ke game</h2>
+            <SyncPill ageSeconds={syncAgeSeconds} />
+          </div>
           <p className="mt-2 text-sm text-muted">
             Dance yang kamu tambah, ubah, atau hapus di sini otomatis muncul di menu Emote dalam game kira-kira
             1 menit kemudian. Tidak perlu publish ulang map.
@@ -171,7 +180,7 @@ export default function MapManager({
       )}
 
       {/* ---------- daftar dance ---------- */}
-      <section className="rise glass rounded-3xl p-6 lg:col-span-2">
+      <section className="rise glass min-w-0 rounded-3xl p-6 lg:col-span-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">
             Dance dari website <span className="text-muted font-normal">· {dances?.length ?? "…"}</span>
@@ -255,20 +264,61 @@ function DanceRow({
   );
 }
 
-function GameConnection({ slug, baseUrl, keyHint }: { slug: string; baseUrl: string; keyHint: string }) {
+function SyncPill({ ageSeconds }: { ageSeconds: number | null }) {
+  if (ageSeconds === null) {
+    return <span className="rounded-full bg-[rgba(255,204,102,0.12)] px-2.5 py-1 text-xs text-warn">○ Belum tersambung</span>;
+  }
+  const min = ageSeconds / 60;
+  const label = min < 1 ? "barusan" : min < 60 ? `${Math.floor(min)} mnt lalu` : min < 1440 ? `${Math.floor(min / 60)} jam lalu` : `${Math.floor(min / 1440)} hari lalu`;
+  return min < 10 ? (
+    <span className="rounded-full bg-[rgba(95,227,161,0.12)] px-2.5 py-1 text-xs text-ok">● Game online · {label}</span>
+  ) : (
+    <span className="rounded-full bg-panel-strong px-2.5 py-1 text-xs text-muted">● Sinkron terakhir {label}</span>
+  );
+}
+
+function CopyBtn({ text, label }: { text: string; label: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost px-3 py-1.5 text-xs"
+      onClick={async () => {
+        await navigator.clipboard.writeText(text).catch(() => {});
+        setDone(true);
+        setTimeout(() => setDone(false), 1500);
+      }}
+    >
+      {done ? "Tersalin ✓" : label}
+    </button>
+  );
+}
+
+function GameConnection({
+  slug,
+  baseUrl,
+  keyHint,
+  script,
+  syncAgeSeconds,
+}: {
+  slug: string;
+  baseUrl: string;
+  keyHint: string;
+  script: string | null;
+  syncAgeSeconds: number | null;
+}) {
   const [newKey, setNewKey] = useState<string | null>(null);
   const [hint, setHint] = useState(keyHint);
   const [busy, setBusy] = useState(false);
   const endpoint = `${baseUrl}/api/v1/maps/${slug}/dances`;
-  const lua = `-- ServerScriptService > OnBlox > Config (ModuleScript)
-return {
-\tUrl = "${endpoint}",
-\tKey = "${newKey ?? "<tempel kunci API di sini>"}",
-\tRefreshSeconds = 60,
+  const lua = `return {
+	Url = "${endpoint}",
+	Key = "${newKey ?? "TEMPEL_KUNCI_API_DI_SINI"}",
+	RefreshSeconds = 60,
 }`;
 
   async function rotate() {
-    if (!confirm("Buat kunci baru? Kunci lama langsung tidak berlaku, jadi game harus diupdate.")) return;
+    if (!confirm("Buat kunci baru? Kunci lama langsung tidak berlaku, jadi Config di game harus diganti.")) return;
     setBusy(true);
     const res = await fetch(`/api/admin/maps/${slug}/key`, { method: "POST" });
     const data = await res.json().catch(() => ({}));
@@ -279,16 +329,92 @@ return {
     }
   }
 
+  const steps: { title: React.ReactNode; body?: React.ReactNode }[] = [
+    {
+      title: (
+        <>
+          Game Settings → Security → <b>Allow HTTP Requests</b> = ON
+        </>
+      ),
+    },
+    {
+      title: (
+        <>
+          Di <b>ServerScriptService</b>, buat <b>Folder</b> bernama <code>OnBlox</code>
+        </>
+      ),
+    },
+    {
+      title: (
+        <>
+          Di folder itu, buat <b>ModuleScript</b> <code>Config</code>, isi dengan:
+        </>
+      ),
+      body: (
+        <>
+          <pre className="mt-2 overflow-x-auto rounded-xl bg-black/40 p-3 font-mono text-xs leading-relaxed text-muted">{lua}</pre>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <CopyBtn text={lua} label="Salin Config" />
+            {!newKey && (
+              <span className="text-xs text-warn">
+                Ganti TEMPEL_KUNCI_API_DI_SINI dengan kunci dari saat map dibuat, atau klik “Buat kunci baru”.
+              </span>
+            )}
+          </div>
+        </>
+      ),
+    },
+    {
+      title: (
+        <>
+          Buat <b>Script</b> <code>OnBloxDances</code> di folder yang sama, isi dengan script OnBlox
+        </>
+      ),
+      body: script ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <CopyBtn text={script} label="Salin script" />
+          <details className="w-full">
+            <summary className="cursor-pointer text-xs text-muted hover:text-text">Lihat isi script</summary>
+            <pre className="mt-2 max-h-64 overflow-auto rounded-xl bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-muted">{script}</pre>
+          </details>
+        </div>
+      ) : (
+        <p className="mt-1 text-xs text-muted">Isi dari roblox/OnBloxDances.server.lua di repo.</p>
+      ),
+    },
+    {
+      title: <>Publish map (sekali ini saja). Status di atas berubah jadi “Game online” begitu server jalan.</>,
+    },
+  ];
+
   return (
-    <section className="rise glass rounded-3xl p-6" style={{ animationDelay: "0.05s" }}>
-      <h2 className="text-lg font-semibold">Sambungan ke game</h2>
-      <p className="mt-1 text-sm text-muted">Server Roblox mengambil daftar dance dari alamat ini.</p>
-      <dl className="mt-4 space-y-3 text-sm">
+    <section className="rise glass min-w-0 rounded-3xl p-6" style={{ animationDelay: "0.05s" }}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Sambungan ke game</h2>
+        <SyncPill ageSeconds={syncAgeSeconds} />
+      </div>
+      <p className="mt-1 text-sm text-muted">Pasang sekali di Roblox Studio. Setelah itu semua perubahan dance cukup dari website.</p>
+
+      <ol className="mt-4 space-y-3 text-sm">
+        {steps.map((st, i) => (
+          <li key={i} className="flex gap-3">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-panel-strong text-[11px] text-muted">
+              {i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p>{st.title}</p>
+              {st.body}
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <dl className="mt-5 space-y-3 border-t border-line pt-4 text-sm">
         <div>
           <dt className="text-muted">Endpoint</dt>
           <dd className="mt-1 break-all rounded-xl bg-black/30 px-3 py-2 font-mono text-xs">{endpoint}</dd>
         </div>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <dt className="text-muted">Kunci API</dt>
             <dd className="font-mono text-xs">{hint}</dd>
@@ -299,7 +425,6 @@ return {
         </div>
       </dl>
       {newKey && <KeyReveal apiKey={newKey} />}
-      <pre className="mt-4 overflow-x-auto rounded-2xl bg-black/40 p-4 font-mono text-xs leading-relaxed text-muted">{lua}</pre>
     </section>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { PreviewButton } from "./PreviewControls";
 
 export type MapOption = { id: number; name: string; slug: string };
 export type MemberView = {
@@ -16,6 +17,16 @@ export type MemberView = {
   mapIds: number[];
 };
 
+export type RequestView = {
+  sub: string;
+  name: string;
+  email: string | null;
+  discordId: string | null;
+  avatar: string | null;
+  lastLoginAt: string;
+  loginCount: number;
+};
+
 type Draft = { name: string; email: string; discordId: string; role: "admin" | "client"; mapIds: number[] };
 
 const EMPTY: Draft = { name: "", email: "", discordId: "", role: "client", mapIds: [] };
@@ -24,27 +35,53 @@ function toDraft(m: MemberView): Draft {
   return { name: m.name, email: m.email ?? "", discordId: m.discordId ?? "", role: m.role, mapIds: m.mapIds };
 }
 
-function timeAgo(iso: string | null) {
-  if (!iso) return "Belum pernah masuk";
+export function ago(iso: string) {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return "Masuk barusan";
-  if (diff < 3600) return `Masuk ${Math.floor(diff / 60)} menit lalu`;
-  if (diff < 86400) return `Masuk ${Math.floor(diff / 3600)} jam lalu`;
-  return `Masuk ${Math.floor(diff / 86400)} hari lalu`;
+  if (diff < 60) return "barusan";
+  if (diff < 3600) return `${Math.floor(diff / 60)} menit lalu`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} jam lalu`;
+  return `${Math.floor(diff / 86400)} hari lalu`;
+}
+
+function timeAgo(iso: string | null) {
+  return iso ? `Masuk ${ago(iso)}` : "Belum pernah masuk";
 }
 
 export default function MembersManager({
   initialMembers,
+  requests,
   maps,
   selfMemberId,
 }: {
   initialMembers: MemberView[];
+  requests: RequestView[];
   maps: MapOption[];
   selfMemberId: number | null;
 }) {
   const router = useRouter();
   const [members, setMembers] = useState(initialMembers);
-  const [editing, setEditing] = useState<number | "new" | null>(initialMembers.length === 0 ? "new" : null);
+  const [editing, setEditing] = useState<number | "new" | null>(
+    initialMembers.length === 0 && requests.length === 0 ? "new" : null,
+  );
+  const [newDraft, setNewDraft] = useState<Draft>(EMPTY);
+  const [hidden, setHidden] = useState<string[]>([]);
+
+  function grant(r: RequestView) {
+    setNewDraft({ ...EMPTY, name: r.name, email: r.email ?? "", discordId: r.discordId ?? "" });
+    setEditing("new");
+    setTimeout(() => document.getElementById("member-form-new")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
+
+  async function dismiss(r: RequestView) {
+    setHidden((h) => [...h, r.sub]);
+    await fetch("/api/admin/requests", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sub: r.sub, dismissed: true }),
+    });
+    router.refresh();
+  }
+  const visibleRequests = requests.filter((r) => !hidden.includes(r.sub));
   const [query, setQuery] = useState("");
 
   const mapName = useMemo(() => new Map(maps.map((m) => [m.id, m.name])), [maps]);
@@ -111,7 +148,13 @@ export default function MembersManager({
           onChange={(e) => setQuery(e.target.value)}
         />
         {editing !== "new" && (
-          <button className="btn btn-primary" onClick={() => setEditing("new")}>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              setNewDraft(EMPTY);
+              setEditing("new");
+            }}
+          >
             ＋ Beri akses
           </button>
         )}
@@ -119,13 +162,62 @@ export default function MembersManager({
 
       {editing === "new" && (
         <MemberForm
-          title="Beri akses baru"
-          initial={EMPTY}
+          id="member-form-new"
+          key={newDraft.discordId + newDraft.email + newDraft.name}
+          title={newDraft.name ? `Beri akses ke ${newDraft.name}` : "Beri akses baru"}
+          initial={newDraft}
           maps={maps}
           submitLabel="Beri akses"
           onSubmit={(d) => save("new", d)}
           onCancel={() => setEditing(null)}
         />
+      )}
+
+      {visibleRequests.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <h2 className="text-lg font-semibold">
+              Permintaan akses{" "}
+              <span className="rounded-full bg-[rgba(255,204,102,0.15)] px-2 py-0.5 text-sm text-warn">{visibleRequests.length}</span>
+            </h2>
+            <span className="text-xs text-muted">Sudah login tapi belum punya akses</span>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {visibleRequests.map((r) => (
+              <div key={r.sub} className="glass flex flex-wrap items-center gap-4 rounded-3xl border-[rgba(255,204,102,0.25)] p-5">
+                {r.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={r.avatar} alt="" width={44} height={44} className="h-11 w-11 rounded-full" />
+                ) : (
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-panel-strong font-semibold text-muted">
+                    {r.name.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{r.name}</p>
+                  <p className="truncate text-xs text-muted">
+                    {[r.discordId && `Discord ${r.discordId}`, r.email].filter(Boolean).join(" · ") || "Akun Google (email belum terverifikasi)"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    Login {r.loginCount}× · terakhir {ago(r.lastLoginAt)}
+                  </p>
+                </div>
+                <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+                  <button
+                    className="btn btn-primary px-3 py-1.5 text-sm"
+                    disabled={!r.discordId && !r.email}
+                    onClick={() => grant(r)}
+                  >
+                    Beri akses
+                  </button>
+                  <button className="btn btn-ghost px-3 py-1.5 text-sm" onClick={() => dismiss(r)}>
+                    Abaikan
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {groups.map((g) => (
@@ -141,7 +233,7 @@ export default function MembersManager({
               {q ? "Tidak ada yang cocok." : g.role === "client" ? "Belum ada klien. Klik “Beri akses” untuk menambahkan." : "Belum ada admin studio."}
             </p>
           ) : (
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               {g.list.map((m) =>
                 editing === m.id ? (
                   <MemberForm
@@ -220,7 +312,8 @@ function MemberCard({
         )}
       </div>
       {!isSelf && (
-        <div className="flex gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <PreviewButton target={m.id} />
           <button className="btn btn-ghost px-3 py-1.5 text-sm" onClick={onEdit}>
             Ubah
           </button>
@@ -234,6 +327,7 @@ function MemberCard({
 }
 
 function MemberForm({
+  id,
   title,
   initial,
   maps,
@@ -241,6 +335,7 @@ function MemberForm({
   onSubmit,
   onCancel,
 }: {
+  id?: string;
   title: string;
   initial: Draft;
   maps: MapOption[];
@@ -265,10 +360,10 @@ function MemberForm({
   }
 
   return (
-    <form onSubmit={submit} className="rise glass space-y-5 rounded-3xl border-[rgba(179,140,255,0.35)] p-6">
+    <form id={id} onSubmit={submit} className="rise glass scroll-mt-32 space-y-5 rounded-3xl border-[rgba(179,140,255,0.35)] p-6">
       <h3 className="text-lg font-semibold">{title}</h3>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="space-y-1.5 sm:col-span-2">
           <span className="text-xs text-muted">Nama (klien / staf)</span>
           <input className="input" value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="mis. Nama klien" autoFocus />
@@ -295,7 +390,7 @@ function MemberForm({
 
       <div className="space-y-2">
         <span className="text-xs text-muted">Peran</span>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {(
             [
               { v: "client", t: "Klien", b: "Hanya map yang dicentang di bawah. Bisa kelola dance." },

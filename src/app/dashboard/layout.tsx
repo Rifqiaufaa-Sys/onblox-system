@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { ROLE_LABEL, getAccess, isStaff, type Access } from "@/lib/access";
+import { ROLE_LABEL, getAccess, isStaff, pendingRequests, type Access } from "@/lib/access";
 import LogoutButton from "./LogoutButton";
 import SetupNeeded from "@/components/SetupNeeded";
 import DashboardNav from "@/components/DashboardNav";
+import { PreviewBanner } from "@/components/PreviewControls";
 
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   return (
@@ -20,8 +21,10 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
  */
 async function Gate({ children }: { children: React.ReactNode }) {
   let access: Access | null;
+  let pending = 0;
   try {
     access = await getAccess();
+    if (access && isStaff(access) && !access.preview) pending = (await pendingRequests(50)).length;
   } catch (e) {
     return <SetupNeeded message={String((e as Error).message)} />;
   }
@@ -30,17 +33,22 @@ async function Gate({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-20 border-b border-line bg-[rgba(7,6,11,0.7)] backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
+      <header className="sticky top-0 z-20 border-b border-line bg-[rgba(7,6,11,0.8)] backdrop-blur-xl">
+        {access.preview && <PreviewBanner label={access.preview.label} />}
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="font-semibold tracking-tight">
               OnBlox<span className="text-accent">.</span>{" "}
               <span className="font-normal text-muted">system</span>
             </Link>
-            {role !== "none" && <DashboardNav staff={isStaff(access)} />}
+            {role !== "none" && (
+              <div className="hidden sm:block">
+                <DashboardNav staff={isStaff(access)} badge={pending} />
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden items-center gap-2.5 sm:flex">
+            <span className="flex items-center gap-2.5">
               {session.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={session.avatar} alt="" width={30} height={30} className="h-[30px] w-[30px] rounded-full" />
@@ -49,16 +57,21 @@ async function Gate({ children }: { children: React.ReactNode }) {
                   {session.name.slice(0, 1).toUpperCase()}
                 </span>
               )}
-              <span className="leading-tight">
+              <span className="hidden leading-tight sm:block">
                 <span className="block text-sm">{session.name}</span>
                 <span className="block text-[11px] text-muted">{ROLE_LABEL[role]}</span>
               </span>
             </span>
             <LogoutButton />
           </div>
+          {role !== "none" && (
+            <div className="w-full sm:hidden">
+              <DashboardNav staff={isStaff(access)} badge={pending} />
+            </div>
+          )}
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">{children}</main>
     </div>
   );
 }

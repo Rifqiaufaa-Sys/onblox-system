@@ -1,6 +1,7 @@
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { getSession, type Session } from "./auth";
-import { ensureSchema, getMapBySlug, sql, type MemberRow } from "./db";
+import { ensureSchema, getMapBySlug, sql, type AccountRow, type MemberRow } from "./db";
 
 /**
  * Siapa boleh apa.
@@ -17,7 +18,12 @@ export type Access = {
   role: Role;
   memberId: number | null;
   mapIds: number[] | "all";
+  /** diisi saat owner/admin sedang "Lihat sebagai" orang lain (hanya tampilan halaman) */
+  preview: { label: string } | null;
 };
+
+/** Cookie mode pratinjau: "guest" atau "member:<id>". Hanya dihormati kalau aslinya owner/admin. */
+export const PREVIEW_COOKIE = "onblox_preview";
 
 export const ROLE_LABEL: Record<Role, string> = {
   owner: "Owner",
@@ -48,6 +54,23 @@ function isOwner(s: Session) {
   return Boolean(s.email && envList("ALLOWED_EMAILS").includes(s.email));
 }
 
+/**
+ * Orang yang sudah login tapi belum punya akses (bukan owner, belum jadi member, belum diabaikan).
+ */
+export async function pendingRequests(limit = 100): Promise<AccountRow[]> {
+  await ensureSchema();
+  const rows = (await sql()`
+    SELECT a.* FROM accounts a
+    WHERE NOT a.dismissed AND NOT EXISTS (
+      SELECT 1 FROM members m
+      WHERE (a.discord_id IS NOT NULL AND m.discord_id = a.discord_id)
+         OR (a.email IS NOT NULL AND m.email = a.email))
+    ORDER BY a.last_login_at DESC LIMIT ${limit}`) as AccountRow[];
+  return rows.filter(
+    (a) => !isOwner({ sub: a.sub, provider: a.provider as Session["provider"], email: a.email, name: a.name, avatar: null }),
+  );
+}
+
 /** Cari member yang cocok dengan Discord ID atau email (terverifikasi) dari sesi. */
 export async function findMember(s: Session): Promise<MemberRow | null> {
   const discordId = discordIdOf(s);
@@ -62,19 +85,57 @@ export async function findMember(s: Session): Promise<MemberRow | null> {
   return rows[0] ?? null;
 }
 
-export async function accessFor(session: Session): Promise<Access> {
-  if (isOwner(session)) return { session, role: "owner", memberId: null, mapIds: "all" };
-  const m = await findMember(session);
-  if (!m) return { session, role: "none", memberId: null, mapIds: [] };
-  if (m.role === "admin") return { session, role: "admin", memberId: m.id, mapIds: "all" };
+async function memberAccess(session: Session, m: MemberRow): Promise<Access> {
+  if (m.role === "admin") return { session, role: "admin", memberId: m.id, mapIds: "all", preview: null };
   const rows = (await sql()`SELECT map_id FROM map_access WHERE member_id = ${m.id}`) as { map_id: number }[];
-  return { session, role: "client", memberId: m.id, mapIds: rows.map((r) => r.map_id) };
+  return { session, role: "client", memberId: m.id, mapIds: rows.map((r) => r.map_id), preview: null };
 }
 
-/** Untuk server component. Di-cache per request supaya layout + page tidak query dua kali. */
+/** Hak akses ASLI (dipakai semua API). Tidak terpengaruh mode pratinjau. */
+export async function accessFor(session: Session): Promise<Access> {
+  if (isOwner(session)) return { session, role: "owner", memberId: null, mapIds: "all", preview: null };
+  const m = await findMember(session);
+  if (!m) return { session, role: "none", memberId: null, mapIds: [], preview: null };
+  return memberAccess(session, m);
+}
+
+/** Identitas contoh untuk pratinjau tamu (bukan akun sungguhan). */
+const GUEST_PREVIEW: Session = {
+  sub: "discord:123456789012345678",
+  name: "Calon Klien",
+  avatar: null,
+  provider: "discord",
+  email: null,
+};
+
+/**
+ * Untuk server component (halaman). Di-cache per request supaya layout + page tidak query dua kali.
+ * Owner/admin yang menyalakan pratinjau akan melihat halaman persis seperti klien/tamu itu.
+ */
 export const getAccess = cache(async (): Promise<Access | null> => {
   const session = await getSession();
-  return session ? accessFor(session) : null;
+  if (!session) return null;
+  const real = await accessFor(session);
+  if (!isStaff(real)) return real;
+
+  const p = (await cookies()).get(PREVIEW_COOKIE)?.value;
+  if (p === "guest") {
+    return { session: GUEST_PREVIEW, role: "none", memberId: null, mapIds: [], preview: { label: "Tamu (belum terdaftar)" } };
+  }
+  const id = p?.startsWith("member:") ? Number(p.slice(7)) : NaN;
+  if (!Number.isInteger(id)) return real;
+  const rows = (await sql()`SELECT * FROM members WHERE id = ${id}`) as MemberRow[];
+  const m = rows[0];
+  if (!m) return real;
+  const as: Session = {
+    sub: m.discord_id ? `discord:${m.discord_id}` : `preview:${m.id}`,
+    name: m.name,
+    avatar: m.avatar,
+    provider: m.discord_id ? "discord" : "google",
+    email: m.email,
+  };
+  const a = await memberAccess(as, m);
+  return { ...a, preview: { label: `${m.name} · ${ROLE_LABEL[a.role]}` } };
 });
 
 export function isStaff(a: Access) {

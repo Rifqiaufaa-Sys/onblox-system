@@ -1,15 +1,17 @@
 import { notFound, redirect } from "next/navigation";
-import { getAccess, isStaff, ROLE_LABEL, type Access } from "@/lib/access";
+import { getAccess, isStaff, pendingRequests, ROLE_LABEL, type Access } from "@/lib/access";
 import { ensureSchema, sql } from "@/lib/db";
 import { listMembers } from "@/lib/members";
 import SetupNeeded from "@/components/SetupNeeded";
-import MembersManager, { type MapOption, type MemberView } from "@/components/MembersManager";
+import MembersManager, { type MapOption, type MemberView, type RequestView } from "@/components/MembersManager";
+import { PreviewButton } from "@/components/PreviewControls";
 
 export default async function AksesPage() {
   // cek akses di page sendiri (bukan cuma di layout) — lihat CLAUDE.md
   let access: Access | null;
   let members: MemberView[] = [];
   let maps: MapOption[] = [];
+  let requests: RequestView[] = [];
   try {
     access = await getAccess();
     if (access && isStaff(access)) {
@@ -27,6 +29,15 @@ export default async function AksesPage() {
         mapIds: (m.map_ids ?? []).map(Number),
       }));
       maps = (await sql()`SELECT id, name, slug FROM maps ORDER BY created_at ASC`) as MapOption[];
+      requests = (await pendingRequests()).map((a) => ({
+        sub: a.sub,
+        name: a.name,
+        email: a.email,
+        discordId: a.discord_id,
+        avatar: a.avatar,
+        lastLoginAt: iso(a.last_login_at) ?? new Date(0).toISOString(),
+        loginCount: Number(a.login_count),
+      }));
     }
   } catch (e) {
     return <SetupNeeded message={String((e as Error).message)} />;
@@ -55,7 +66,20 @@ export default async function AksesPage() {
         </p>
       </section>
 
-      <MembersManager initialMembers={members} maps={maps} selfMemberId={access.memberId} />
+      <section
+        className="rise glass flex flex-wrap items-center justify-between gap-4 rounded-3xl p-5"
+        style={{ animationDelay: "0.05s" }}
+      >
+        <div>
+          <h2 className="font-semibold">Pratinjau tampilan</h2>
+          <p className="text-sm text-muted">
+            Lihat halaman persis seperti orang yang belum terdaftar, atau klik “Lihat sebagai” di kartu member.
+          </p>
+        </div>
+        <PreviewButton target="guest" label="Lihat sebagai tamu" />
+      </section>
+
+      <MembersManager initialMembers={members} requests={requests} maps={maps} selfMemberId={access.memberId} />
     </div>
   );
 }
