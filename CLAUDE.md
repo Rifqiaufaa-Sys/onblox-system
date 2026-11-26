@@ -119,6 +119,21 @@ Jangan pernah commit `.env*` (kecuali `.env.example`).
 - Dites di Studio (play test, data disimulasikan): tambah, dobel dilewati, ganti nama, hapus, putar dance.
   Belum dites dengan website asli (butuh kunci API).
 
+## Sambungan ke game (ILLUZION — TERPASANG 2026-11-27, belum di-publish)
+
+- Place `89994165099584`, universe `10768284744`, map website slug **`illuzion-club`** (Config sudah berisi
+  Url + Key asli). `OnBloxDances` identik dengan repo (6354 karakter).
+- GraypoleaDance ILLUZION adalah **versi lebih lama** dari Sepetak (519 dance di modul):
+  - `animation_system`: tidak ada `idByAssetId`; `sanitizeIds` langsung membaca tabel `animations`, jadi
+    blok OnBlox sama seperti Sepetak minus baris `idByAssetId = nil`. Blok ditempel di akhir file.
+  - `EmoteGui` = "procedural widget": tidak ada `invokeWithTimeout`/`findRemote`/`dataLoaded`, daftar
+    diurutkan A-Z. Pendengar `animations_changed` ditaruh sebelum `print("... procedural widget ready.")`,
+    memanggil ulang `request_animations` (+ urut A-Z) dan `request_favorites`, lalu `RenderUI()`.
+- Backup: `ServerStorage.Backup_OnBloxDance_20261127`.
+- Dites (play test): website asli tersambung (0 dance), simulasi tambah 2 (dobel modul dilewati, total 521),
+  muncul di menu tanpa rejoin, ReDreaming Angel `70423383735609` diputar 10 dtk, hapus → 520.
+- Belum: Sinyal instan (Open Cloud API key untuk universe ILLUZION) dan publish.
+
 ## Roadmap
 
 1. ~~Sambungkan dance website ↔ GraypoleaDance~~ dan ~~sinyal instan~~ (sudah). Tinggal: isi Open Cloud
