@@ -74,8 +74,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       }
       const name = wanted.name ?? r.name;
       await sql()`
-        INSERT INTO dances (map_id, animation_id, name, category, creator, added_by)
-        VALUES (${map.id}, ${wanted.id}, ${name}, ${parsed.data.category}, ${r.creator}, ${s.sub})
+        INSERT INTO dances (map_id, animation_id, name, category, creator, asset_type, added_by)
+        VALUES (${map.id}, ${wanted.id}, ${name}, ${parsed.data.category}, ${r.creator}, ${r.kind}, ${s.sub})
         ON CONFLICT (map_id, animation_id) DO NOTHING`;
       results.push({ id: wanted.id, status: "added", name, verified: r.verified });
     }

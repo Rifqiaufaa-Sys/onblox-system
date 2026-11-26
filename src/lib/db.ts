@@ -47,6 +47,8 @@ export function ensureSchema(): Promise<void> {
         UNIQUE (map_id, animation_id)
       )`;
     await db`CREATE INDEX IF NOT EXISTS dances_map_idx ON dances(map_id)`;
+    // "emote" = ID item emote marketplace (game membongkarnya jadi ID animasi asli); "animation"; NULL = belum tahu
+    await db`ALTER TABLE dances ADD COLUMN IF NOT EXISTS asset_type TEXT`;
     // member = orang yang boleh masuk selain owner (owner diatur lewat env ALLOWED_*)
     await db`
       CREATE TABLE IF NOT EXISTS members (
@@ -122,6 +124,7 @@ export type DanceRow = {
   name: string;
   category: string;
   creator: string | null;
+  asset_type: "animation" | "emote" | null;
   added_by: string | null;
   created_at: string;
 };

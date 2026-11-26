@@ -102,6 +102,13 @@ Jangan pernah commit `.env*` (kecuali `.env.example`).
   dilewati; dihapus di website → `animations_index[id]=nil`), lalu `Events.animations_changed:FireAllClients()`.
 - `EmoteGui`: dengar `animations_changed` → panggil ulang `request_animations` + favorit → `RenderUI(true)`.
   Pemain tidak perlu rejoin. Dance di modul `Internals.animations` tidak diubah.
+- **ID emote marketplace (AssetTypeId 61) ≠ ID animasi.** Website mencatat `dances.asset_type`
+  ("emote"/"animation"/NULL) dan mengirim `type` di API game. `OnBloxDances` membongkar emote dengan
+  `InsertService:LoadAsset(id)` → `Animation.AnimationId` (di-cache per server; type NULL → cek
+  `MarketplaceService:GetProductInfo`). Animasi asli emote marketplace bisa diputar tanpa spoof (dites:
+  87891628617367 → 70423383735609, panjang 10 dtk). Kalau hasilnya sama dengan ID di modul, entri website
+  dilewati (modul menang) — contoh: "Redreaming" modul #452.
+- Dashboard: tiap dance punya tombol "✎ Ubah" (nama, ID/link marketplace, kategori); ganti ID dicek ulang ke Roblox.
 - Backup sebelum diubah: `ServerStorage.Backup_OnBloxDance_20261127`.
 - Dites di Studio (play test, data disimulasikan): tambah, dobel dilewati, ganti nama, hapus, putar dance.
   Belum dites dengan website asli (butuh kunci API).

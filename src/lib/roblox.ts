@@ -1,9 +1,15 @@
 /**
  * Ubah ID animasi Roblox jadi nama, langsung dari katalog Roblox.
  * AssetTypeId 24 = Animation, 61 = EmoteAnimation. Selain itu ditolak (bukan animasi).
+ *
+ * PENTING: ID emote dari marketplace (tipe 61) BUKAN ID animasi. Emote adalah "bungkus" berisi objek
+ * Animation dengan ID lain. Game membongkarnya sendiri (InsertService:LoadAsset), jadi di sini kita
+ * cukup mencatat jenisnya ("emote") dan mengirimnya lewat API.
  */
+export type AssetKind = "animation" | "emote";
+
 export type ResolvedAnimation =
-  | { ok: true; id: string; name: string; creator: string | null; verified: boolean }
+  | { ok: true; id: string; name: string; creator: string | null; verified: boolean; kind: AssetKind | null }
   | { ok: false; id: string; reason: string };
 
 const ANIMATION_TYPES = new Set([24, 61]);
@@ -37,10 +43,11 @@ export async function resolveAnimation(id: string): Promise<ResolvedAnimation> {
       return { ok: false, id, reason: `Bukan animasi (tipe asset ${info.AssetTypeId})` };
     }
     const name = cleanName(info.Name ?? "") || `Dance ${id}`;
-    return { ok: true, id, name, creator: info.Creator?.Name ?? null, verified: true };
+    const kind: AssetKind | null = info.AssetTypeId === 61 ? "emote" : info.AssetTypeId === 24 ? "animation" : null;
+    return { ok: true, id, name, creator: info.Creator?.Name ?? null, verified: true, kind };
   } catch {
     // Roblox sedang sibuk / rate limit: tetap terima, nama sementara bisa diganti nanti
-    return { ok: true, id, name: `Dance ${id}`, creator: null, verified: false };
+    return { ok: true, id, name: `Dance ${id}`, creator: null, verified: false, kind: null };
   }
 }
 

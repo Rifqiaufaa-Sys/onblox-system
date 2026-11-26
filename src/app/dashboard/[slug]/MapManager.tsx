@@ -9,8 +9,11 @@ export type Dance = {
   name: string;
   category: string;
   creator: string | null;
+  asset_type?: "animation" | "emote" | null;
   created_at: string;
 };
+
+export type DancePatch = { name?: string; category?: string; animationId?: string };
 
 type AddResult = {
   id: string;
@@ -88,13 +91,28 @@ export default function MapManager({
     load();
   }
 
-  async function patch(d: Dance, body: Partial<Pick<Dance, "name" | "category">>) {
-    setDances((list) => list?.map((x) => (x.id === d.id ? { ...x, ...body } : x)) ?? null);
-    await fetch(`${api}/dances/${d.id}`, {
+  /** Simpan perubahan; balas pesan error (atau null kalau berhasil). */
+  async function patch(d: Dance, body: DancePatch): Promise<string | null> {
+    const res = await fetch(`${api}/dances/${d.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return (data.error as string) ?? "Gagal menyimpan";
+    }
+    if (body.animationId) {
+      await load(); // ID berubah: ambil ulang (pembuat & jenis asset ikut berubah)
+    } else {
+      setDances(
+        (list) =>
+          list?.map((x) =>
+            x.id === d.id ? { ...x, ...(body.name ? { name: body.name } : {}), ...(body.category ? { category: body.category } : {}) } : x,
+          ) ?? null,
+      );
+    }
+    return null;
   }
 
   async function remove(d: Dance) {
@@ -209,53 +227,107 @@ function DanceRow({
   onRemove,
 }: {
   dance: Dance;
-  onPatch: (d: Dance, body: Partial<Pick<Dance, "name" | "category">>) => void;
+  onPatch: (d: Dance, body: DancePatch) => Promise<string | null>;
   onRemove: (d: Dance) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(dance.name);
+  const [assetId, setAssetId] = useState(dance.animation_id);
+  const [cat, setCat] = useState(dance.category);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function save() {
-    setEditing(false);
-    const v = name.trim();
-    if (v && v !== dance.name) onPatch(dance, { name: v });
-    else setName(dance.name);
+  function open() {
+    setName(dance.name);
+    setAssetId(dance.animation_id);
+    setCat(dance.category);
+    setError(null);
+    setEditing(true);
+  }
+
+  async function save(e?: React.FormEvent) {
+    e?.preventDefault();
+    const body: DancePatch = {};
+    const n = name.trim();
+    if (n && n !== dance.name) body.name = n;
+    if (cat !== dance.category) body.category = cat;
+    const idDigits = assetId.match(/\d{5,20}/)?.[0];
+    if (!idDigits) return setError("ID animasi tidak terbaca");
+    if (idDigits !== dance.animation_id) body.animationId = idDigits;
+    if (!Object.keys(body).length) return setEditing(false);
+    setBusy(true);
+    setError(null);
+    const err = await onPatch(dance, body);
+    setBusy(false);
+    if (err) setError(err);
+    else setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <li className="py-3">
+        <form onSubmit={save} className="space-y-3 rounded-2xl border border-[rgba(179,140,255,0.35)] bg-[rgba(179,140,255,0.05)] p-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5">
+              <span className="text-xs text-muted">Nama di menu Emote</span>
+              <input className="input py-2" value={name} autoFocus maxLength={60} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs text-muted">ID animasi / emote (boleh link marketplace)</span>
+              <input className="input py-2 font-mono text-xs" value={assetId} onChange={(e) => setAssetId(e.target.value)} />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="glass flex rounded-full p-1 text-sm">
+              {(["Dance", "Pose"] as const).map((c) => (
+                <button
+                  type="button"
+                  key={c}
+                  onClick={() => setCat(c)}
+                  className={`rounded-full px-3 py-1 transition ${cat === c ? "bg-accent text-[#0b0913]" : "text-muted"}`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto flex gap-2">
+              <button type="button" className="btn btn-ghost px-3 py-1.5 text-sm" onClick={() => setEditing(false)}>
+                Batal
+              </button>
+              <button className="btn btn-primary px-4 py-1.5 text-sm" disabled={busy || !name.trim()}>
+                {busy ? "Menyimpan…" : "Simpan"}
+              </button>
+            </div>
+          </div>
+          {error && <p className="text-sm text-bad">{error}</p>}
+          <p className="text-xs text-muted">Kalau ID diganti, website mengecek ulang ke Roblox dulu.</p>
+        </form>
+      </li>
+    );
   }
 
   return (
     <li className="flex flex-wrap items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
-        {editing ? (
-          <input
-            className="input py-1.5"
-            value={name}
-            autoFocus
-            onChange={(e) => setName(e.target.value)}
-            onBlur={save}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") {
-                setName(dance.name);
-                setEditing(false);
-              }
-            }}
-          />
-        ) : (
-          <button className="truncate text-left font-medium hover:text-accent" title="Klik untuk ganti nama" onClick={() => setEditing(true)}>
-            {dance.name}
-          </button>
-        )}
-        <p className="font-mono text-xs text-muted">
+        <p className="truncate font-medium">
+          {dance.name}
+          {dance.asset_type === "emote" && (
+            <span
+              className="ml-2 rounded-full bg-[rgba(94,225,255,0.12)] px-2 py-0.5 align-middle text-[10px] font-normal text-accent-2"
+              title="ID item emote dari marketplace. Game otomatis memakai ID animasi aslinya, tidak perlu spoof."
+            >
+              Emote marketplace
+            </span>
+          )}
+        </p>
+        <p className="truncate font-mono text-xs text-muted">
           rbxassetid://{dance.animation_id}
           {dance.creator ? ` · ${dance.creator}` : ""}
         </p>
       </div>
-      <button
-        className="rounded-full border border-line px-3 py-1 text-xs text-muted transition hover:text-text"
-        title="Klik untuk pindah kategori"
-        onClick={() => onPatch(dance, { category: dance.category === "Dance" ? "Pose" : "Dance" })}
-      >
-        {dance.category}
+      <span className="rounded-full border border-line px-3 py-1 text-xs text-muted">{dance.category}</span>
+      <button className="btn btn-ghost px-3 py-1.5 text-xs" onClick={open}>
+        ✎ Ubah
       </button>
       <button className="btn btn-danger px-3 py-1.5 text-xs" onClick={() => onRemove(dance)}>
         Hapus

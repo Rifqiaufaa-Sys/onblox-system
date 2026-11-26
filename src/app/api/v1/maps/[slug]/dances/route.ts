@@ -33,8 +33,8 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/v1/maps/[slu
     return Response.json({ changed: false, version });
   }
   const rows = (await sql()`
-    SELECT animation_id::text AS animation_id, name, category FROM dances
-    WHERE map_id = ${map.id} ORDER BY created_at ASC, id ASC`) as Pick<DanceRow, "animation_id" | "name" | "category">[];
+    SELECT animation_id::text AS animation_id, name, category, asset_type FROM dances
+    WHERE map_id = ${map.id} ORDER BY created_at ASC, id ASC`) as Pick<DanceRow, "animation_id" | "name" | "category" | "asset_type">[];
   return Response.json(
     {
       changed: true,
@@ -45,6 +45,8 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/v1/maps/[slu
         name: d.name,
         animationId: `rbxassetid://${d.animation_id}`,
         category: d.category,
+        // "emote" → game membongkar ID emote marketplace jadi ID animasi asli
+        type: d.asset_type ?? null,
       })),
     },
     { headers: { "cache-control": "no-store" } },

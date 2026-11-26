@@ -25,7 +25,7 @@ export default async function MapPage({ params }: PageProps<"/dashboard/[slug]">
     : null;
 
   const dances = (await sql()`
-    SELECT id, animation_id::text AS animation_id, name, category, creator, created_at
+    SELECT id, animation_id::text AS animation_id, name, category, creator, asset_type, created_at
     FROM dances WHERE map_id = ${map.id} ORDER BY created_at DESC, id DESC`) as DanceRow[];
 
   const h = await headers();
