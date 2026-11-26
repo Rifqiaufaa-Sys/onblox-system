@@ -22,7 +22,10 @@ boleh campur Inggris untuk istilah teknis).
 ## Fitur v1 (sudah jadi)
 
 - Landing page dengan background 3D (React Three Fiber) — `src/app/page.tsx`, `src/components/Hero3D.tsx`.
-- Login admin: satu password (`ADMIN_PASSWORD`) + sesi JWT di cookie (`src/lib/auth.ts`).
+- Login: **Google + Discord** (OAuth 2 + PKCE, tanpa library, `src/lib/oauth.ts`, route
+  `/api/auth/signin/[provider]` → `/api/auth/callback/[provider]`), dibatasi allowlist env
+  `ALLOWED_EMAILS` / `ALLOWED_DISCORD_IDS`. Password `ADMIN_PASSWORD` opsional sebagai cadangan.
+  Sesi = JWT di cookie (`src/lib/auth.ts`). Semua yang login saat ini = role admin (belum per map).
 - Dashboard: daftar **map** (tiap map punya slug + kunci API sendiri; yang disimpan hanya hash-nya).
 - Kelola **dance** per map: paste banyak ID sekaligus (format bebas, lihat `parseDanceList`),
   nama otomatis dari katalog Roblox (`economy.roblox.com/v2/assets/<id>/details`, AssetTypeId 24/61),
@@ -56,8 +59,13 @@ boleh campur Inggris untuk istilah teknis).
 | Nama | Isi |
 | --- | --- |
 | `DATABASE_URL` | dari Vercel → Storage → Neon (otomatis) |
-| `ADMIN_PASSWORD` | password dashboard |
 | `SESSION_SECRET` | string acak ≥ 32 karakter |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth client Google (boleh pakai client yang sama dengan onbloxstudio.com) |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | aplikasi Discord "Gravely" (sama dengan onbloxstudio.com) |
+| `ALLOWED_EMAILS` / `ALLOWED_DISCORD_IDS` | allowlist, dipisah koma |
+| `ADMIN_PASSWORD` | opsional, password cadangan |
+
+Redirect URI per domain: `https://<domain>/api/auth/callback/google` dan `.../discord`.
 
 Jangan pernah commit `.env*` (kecuali `.env.example`).
 
@@ -81,7 +89,7 @@ Dance dari modul tetap jalan; website hanya menambah.
 ## Roadmap
 
 1. Sambungkan dance website ↔ GraypoleaDance (di atas).
-2. Login seperti website utama (Google) dan/atau Login with Roblox (OAuth), dengan akses per map untuk
-   staf/klien commission (role: owner, admin map).
+2. ~~Login Google/Discord~~ (sudah). Berikutnya: Login with Roblox (OAuth) dan akses per map untuk
+   staf/klien commission (role: owner, admin map) — allowlist pindah dari env ke tabel database.
 3. Multi-klien: tiap commission/map klien punya ruang sendiri.
 4. Modul lain lewat pola yang sama: lagu (GraypoleaMusic), title, pengumuman.

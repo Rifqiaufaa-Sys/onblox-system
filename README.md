@@ -14,13 +14,28 @@ Neon Postgres · deploy di Vercel.
 2. **Database**: di project Vercel → **Storage** → Create Database → **Neon** (Free) → Connect ke project ini.
    `DATABASE_URL` akan terisi otomatis.
 3. **Environment Variables** (Settings → Environment Variables):
-   - `ADMIN_PASSWORD` — password masuk dashboard
    - `SESSION_SECRET` — string acak minimal 32 karakter
+   - Login Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+   - Login Discord: `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
+   - Allowlist: `ALLOWED_EMAILS` (email Google/Discord terverifikasi) dan/atau `ALLOWED_DISCORD_IDS`,
+     dipisah koma. Akun di luar daftar ditolak.
+   - Opsional: `ADMIN_PASSWORD` — password cadangan (kosongkan untuk mematikan)
 4. **Redeploy** (Deployments → ⋯ → Redeploy). Tabel database dibuat otomatis saat pertama dipakai.
+
+### Daftarkan redirect URI
+
+Untuk tiap domain yang dipakai (mis. `onblox-system.vercel.app` dan `system.onbloxstudio.com`):
+
+- **Google Cloud Console** → APIs & Services → Credentials → OAuth client (Web application) →
+  *Authorized redirect URIs*: `https://<domain>/api/auth/callback/google`
+- **Discord Developer Portal** → aplikasi → OAuth2 → *Redirects*: `https://<domain>/api/auth/callback/discord`.
+  Matikan **Public Client** (website ini memakai Client Secret di server).
+
+Kalau login gagal, alasan aslinya tercatat di Vercel → Logs (cari `[oauth:`), mis. `invalid_client` = secret salah.
 
 ## Pakai
 
-1. Buka `https://<project>.vercel.app/dashboard`, masuk dengan `ADMIN_PASSWORD`.
+1. Buka `https://<project>.vercel.app/dashboard`, masuk dengan Google/Discord (atau password cadangan).
 2. **Tambah map** (mis. `Sepetak Club`, slug `sepetak`). Simpan **kunci API** yang muncul (hanya tampil sekali).
 3. Di halaman map, paste ID animasi. Format yang diterima (satu per baris):
    ```
@@ -70,5 +85,5 @@ npm run dev
 
 ## Rencana berikutnya
 
-- Login dengan akun Roblox (OAuth) dan akses per map untuk tiap staf.
+- Login dengan akun Roblox (OAuth) dan akses per map untuk tiap staf (role owner / admin map).
 - Fitur lain lewat pola yang sama: lagu (GraypoleaMusic), title, dll.

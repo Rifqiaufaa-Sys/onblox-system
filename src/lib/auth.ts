@@ -3,8 +3,9 @@ import { cookies } from "next/headers";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
- * Login versi 1: satu password admin (ADMIN_PASSWORD) + sesi JWT di cookie.
- * Nanti bisa diganti / ditambah "Login with Roblox" (OAuth) tanpa mengubah API dance.
+ * Sesi login = JWT di cookie httpOnly.
+ * Cara masuk: Google / Discord (lihat src/lib/oauth.ts, dibatasi allowlist) atau
+ * password cadangan ADMIN_PASSWORD (opsional; kosongkan untuk mematikan).
  */
 export const SESSION_COOKIE = "onblox_session";
 const SESSION_DAYS = 14;
@@ -17,23 +18,40 @@ function secret() {
   return new TextEncoder().encode(s);
 }
 
-export type Session = { sub: string; role: "admin" };
+export type Provider = "google" | "discord" | "password";
 
-export async function createSession(name: string) {
-  const token = await new SignJWT({ role: "admin" })
+export type Session = {
+  /** mis. "google:<sub>", "discord:<id>", "password:admin" */
+  sub: string;
+  role: "admin";
+  name: string;
+  avatar: string | null;
+  provider: Provider;
+};
+
+export type NewSession = Pick<Session, "sub" | "name" | "avatar" | "provider">;
+
+export const sessionCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: SESSION_DAYS * 24 * 60 * 60,
+};
+
+export async function signSession(s: NewSession) {
+  return new SignJWT({ role: "admin", name: s.name, avatar: s.avatar, provider: s.provider })
     .setProtectedHeader({ alg: "HS256" })
-    .setSubject(name)
+    .setSubject(s.sub)
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DAYS}d`)
     .sign(secret());
+}
+
+export async function createSession(s: NewSession) {
+  const token = await signSession(s);
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
-  });
+  jar.set(SESSION_COOKIE, token, sessionCookieOptions);
 }
 
 export async function clearSession() {
@@ -48,10 +66,21 @@ export async function getSession(): Promise<Session | null> {
   try {
     const { payload } = await jwtVerify(token, secret());
     if (payload.role !== "admin" || !payload.sub) return null;
-    return { sub: payload.sub, role: "admin" };
+    const provider = (payload.provider as Provider | undefined) ?? "password";
+    return {
+      sub: payload.sub,
+      role: "admin",
+      name: typeof payload.name === "string" ? payload.name : "Admin",
+      avatar: typeof payload.avatar === "string" ? payload.avatar : null,
+      provider,
+    };
   } catch {
     return null;
   }
+}
+
+export function passwordLoginEnabled() {
+  return Boolean(process.env.ADMIN_PASSWORD);
 }
 
 export function checkAdminPassword(input: string): boolean {

@@ -29,7 +29,7 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-3">
+    <form onSubmit={submit} className="mt-3 space-y-3">
       <input
         className="input"
         type="password"

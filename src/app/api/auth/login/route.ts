@@ -20,6 +20,6 @@ export async function POST(req: Request) {
     return Response.json({ error: "Password salah" }, { status: 401 });
   }
   attempts.delete(ip);
-  await createSession("admin");
+  await createSession({ sub: "password:admin", name: "Admin", avatar: null, provider: "password" });
   return Response.json({ ok: true });
 }

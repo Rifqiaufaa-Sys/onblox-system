@@ -30,7 +30,20 @@ async function Gate({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard" className="font-semibold tracking-tight">
             OnBlox<span className="text-accent">.</span> <span className="text-muted font-normal">dashboard</span>
           </Link>
-          <LogoutButton />
+          <div className="flex items-center gap-3">
+            <span className="hidden items-center gap-2 text-sm text-muted sm:flex">
+              {session.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={session.avatar} alt="" width={28} height={28} className="h-7 w-7 rounded-full" />
+              ) : (
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-panel-strong text-xs">
+                  {session.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              {session.name}
+            </span>
+            <LogoutButton />
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">{children}</main>
