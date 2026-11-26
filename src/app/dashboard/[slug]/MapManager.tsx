@@ -172,8 +172,8 @@ export default function MapManager({
             <SyncPill ageSeconds={syncAgeSeconds} />
           </div>
           <p className="mt-2 text-sm text-muted">
-            Dance yang kamu tambah, ubah, atau hapus di sini otomatis muncul di menu Emote dalam game kira-kira
-            1 menit kemudian. Tidak perlu publish ulang map.
+            Dance yang kamu tambah, ubah, atau hapus di sini otomatis masuk ke menu Emote dalam game (paling lama
+            5 menit, pemain tidak perlu rejoin). Server baru selalu memuat daftar terbaru. Tidak perlu publish ulang map.
           </p>
           <p className="mt-4 text-xs text-muted">Sambungan ke game dipasang dan dirawat oleh tim OnBlox Studio.</p>
         </section>
@@ -314,7 +314,7 @@ function GameConnection({
   const lua = `return {
 	Url = "${endpoint}",
 	Key = "${newKey ?? "TEMPEL_KUNCI_API_DI_SINI"}",
-	RefreshSeconds = 60,
+	RefreshSeconds = 300, -- cek cadangan tiap 5 menit
 }`;
 
   async function rotate() {

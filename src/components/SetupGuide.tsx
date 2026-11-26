@@ -29,7 +29,7 @@ export default function SetupGuide({ s }: { s: GuideState }) {
     {
       done: s.dances > 0,
       title: "Tambah dance",
-      body: "Paste ID animasi di halaman map. Tidak ada tombol publish: dance otomatis muncul di menu Emote dalam ±1 menit.",
+      body: "Paste ID animasi di halaman map. Tidak ada tombol publish: server yang jalan mengambil daftar baru paling lama 5 menit, server baru langsung.",
       href: s.firstMapSlug ? `/dashboard/${s.firstMapSlug}` : null,
       cta: "Tambah dance",
     },

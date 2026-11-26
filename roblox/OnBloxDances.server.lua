@@ -1,24 +1,35 @@
 --[[
-	OnBlox System - Dances (SERVER)
+	OnBlox System - Dances (SERVER)                       system.onbloxstudio.com
 	Taruh di: ServerScriptService > OnBlox > OnBloxDances (Script)
-	Butuh:    ServerScriptService > OnBlox > Config (ModuleScript), isinya disalin dari dashboard:
-	            return { Url = "...", Key = "obx_...", RefreshSeconds = 60 }
+	Butuh:    ServerScriptService > OnBlox > Config (ModuleScript), salin dari dashboard:
+	            return { Url = "...", Key = "obx_...", RefreshSeconds = 300 }
 	Syarat:   Game Settings > Security > "Allow HTTP Requests" = ON
 
-	Cara kerja:
-	  * Saat server mulai, lalu tiap RefreshSeconds, ambil daftar dance dari website.
-	  * Hasilnya ditaruh di ReplicatedStorage > OnBlox > Dances (StringValue berisi JSON)
-	    supaya server DAN client (EmoteGui) bisa membacanya.
-	  * Atribut "Version" berubah setiap ada dance baru -> sistem dance tinggal mendengarkan
-	    Dances:GetAttributeChangedSignal("Version").
+	Kapan daftar diambil (hemat, tidak polling terus-terusan):
+	  1. Sekali saat server mulai.
+	  2. INSTAN saat website mengirim sinyal lewat MessagingService (topik "OnBloxSystem").
+	  3. Cadangan: cek ringan tiap RefreshSeconds (default 5 menit, minimal 60 detik).
+	     Kalau tidak ada perubahan, website hanya membalas { changed = false } (beberapa byte).
+
+	Hasil:
+	  * ReplicatedStorage > OnBlox > Dances (StringValue berisi JSON) + atribut "Version".
+	  * Sistem dance (mis. GraypoleaDance) mendengarkan Dances:GetAttributeChangedSignal("Version").
 	  * Kunci API hanya ada di ServerScriptService (tidak pernah terlihat oleh client).
 ]]
 
 local HttpService = game:GetService("HttpService")
+local MessagingService = game:GetService("MessagingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(script.Parent:WaitForChild("Config"))
-local REFRESH = math.max(30, tonumber(Config.RefreshSeconds) or 60)
+local REFRESH = math.max(60, tonumber(Config.RefreshSeconds) or 300)
+local TOPIC = "OnBloxSystem"
+local SLUG = tostring(Config.Url or ""):match("/maps/([^/]+)/") or ""
+
+if type(Config.Key) ~= "string" or not Config.Key:match("^obx_") then
+	warn("[OnBlox] Config.Key belum diisi. Salin kunci API dari dashboard (system.onbloxstudio.com) ke OnBlox > Config.")
+	return
+end
 
 local folder = ReplicatedStorage:FindFirstChild("OnBlox") or Instance.new("Folder")
 folder.Name = "OnBlox"
@@ -30,8 +41,13 @@ store.Value = store.Value ~= "" and store.Value or "[]"
 store.Parent = folder
 
 local version = nil
+local busy = false
 
-local function fetch()
+local function fetch(reason)
+	if busy then
+		return
+	end
+	busy = true
 	local url = Config.Url .. (version and ("?since=" .. version) or "")
 	local ok, res = pcall(function()
 		return HttpService:RequestAsync({
@@ -40,6 +56,7 @@ local function fetch()
 			Headers = { ["x-onblox-key"] = Config.Key },
 		})
 	end)
+	busy = false
 	if not ok then
 		warn("[OnBlox] Gagal menghubungi website:", res)
 		return
@@ -72,12 +89,30 @@ local function fetch()
 	store.Value = HttpService:JSONEncode(list)
 	version = tostring(data.version)
 	store:SetAttribute("Version", version)
-	print(("[OnBlox] %d dance dari website dimuat (versi %s)"):format(#list, version))
+	print(("[OnBlox] %d dance dari website dimuat (versi %s, %s)"):format(#list, version, reason))
 end
 
+-- 2. Sinyal instan dari website. Isi pesan: slug map, atau "*" untuk semua map.
 task.spawn(function()
+	local ok, err = pcall(function()
+		MessagingService:SubscribeAsync(TOPIC, function(message)
+			local target = tostring(message.Data or "")
+			if target == "*" or target == SLUG then
+				task.wait(math.random() * 3) -- jangan semua server menembak bersamaan
+				fetch("sinyal website")
+			end
+		end)
+	end)
+	if not ok then
+		warn("[OnBlox] MessagingService tidak aktif, hanya memakai cek berkala:", err)
+	end
+end)
+
+-- 1 + 3. Saat server mulai, lalu cek cadangan berkala.
+task.spawn(function()
+	fetch("server mulai")
 	while true do
-		fetch()
 		task.wait(REFRESH)
+		fetch("cek berkala")
 	end
 end)

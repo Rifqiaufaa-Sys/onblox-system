@@ -90,18 +90,26 @@ Jangan pernah commit `.env*` (kecuali `.env.example`).
   Kalau DNS onbloxstudio.com dikelola Vercel, langsung aktif; kalau di registrar lain, tambah record
   **CNAME** `system` → `cname.vercel-dns.com`.
 
-## Status sambungan ke game (BELUM selesai)
+## Sambungan ke game (Sepetak Club — TERPASANG 2026-11-27, belum di-publish)
 
-Di Sepetak Club (Roblox Studio), dance bawaan ada di `ReplicatedStorage.GraypoleaDance.Internals.animations`
-(ModuleScript, ±632 entri `{ name, animationId, category }`). Server: `ServerScriptService.GraypoleaDance.animation_system`.
-Client: `StarterPlayerScripts.GraypoleaDance.EmoteGui` (membaca modul langsung).
-Langkah berikutnya: pasang `OnBloxDances` + `Config` di game, lalu ubah `animation_system` (izinkan ID dari
-website) dan `EmoteGui` (gabungkan daftar dari `ReplicatedStorage.OnBlox.Dances`, dengarkan atribut `Version`).
-Dance dari modul tetap jalan; website hanya menambah.
+- `ServerScriptService.OnBlox.Config` (Url map `sepetak`, **Key masih placeholder** → isi dari dashboard)
+  + `ServerScriptService.OnBlox.OnBloxDances` (= `roblox/OnBloxDances.server.lua`, harus identik).
+- Waktu ambil daftar: saat server mulai, instan via MessagingService topik `OnBloxSystem` (pesan = slug /
+  `*`), dan cadangan tiap `RefreshSeconds` (default 300 dtk, pakai `?since=` → balasan `{changed:false}`).
+  Website BELUM mengirim sinyal MessagingService (butuh Open Cloud API key + universe ID per map).
+- `GraypoleaDance.animation_system` (blok "OnBlox System" di akhir): baca `ReplicatedStorage.OnBlox.Dances`,
+  tambah dance website ke `animations`/`animations_index`/`sanitized_animations` (ID yang sudah ada di modul
+  dilewati; dihapus di website → `animations_index[id]=nil`), lalu `Events.animations_changed:FireAllClients()`.
+- `EmoteGui`: dengar `animations_changed` → panggil ulang `request_animations` + favorit → `RenderUI(true)`.
+  Pemain tidak perlu rejoin. Dance di modul `Internals.animations` tidak diubah.
+- Backup sebelum diubah: `ServerStorage.Backup_OnBloxDance_20261127`.
+- Dites di Studio (play test, data disimulasikan): tambah, dobel dilewati, ganti nama, hapus, putar dance.
+  Belum dites dengan website asli (butuh kunci API).
 
 ## Roadmap
 
-1. Sambungkan dance website ↔ GraypoleaDance (di atas).
+1. ~~Sambungkan dance website ↔ GraypoleaDance~~ (terpasang). Berikutnya: sinyal instan dari website
+   (Open Cloud MessagingService) supaya update tidak menunggu cek 5 menit.
 2. ~~Login Google/Discord + akses per map~~ (sudah). Berikutnya mungkin: Login with Roblox, SSO dengan
    onbloxstudio.com lewat cookie `.onbloxstudio.com`.
 3. Multi-klien: tiap commission/map klien punya ruang sendiri.
